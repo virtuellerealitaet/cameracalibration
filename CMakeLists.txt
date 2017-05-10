@@ -14,29 +14,57 @@ set(lib_dir ${CMAKE_SOURCE_DIR}/lib)
 if (UNIX)
   find_package(OpenCV REQUIRED)
   set(OpenCV_LIBS_DEBUG ${OpenCV_LIBS})
+  find_package(libusb REQUIRED)
   
 else()
   if (OpenCV_BASE_PATH)
-    set(OpenCV_LIB_DEBUG ${OpenCV_BASE_PATH}/lib/opencv_world310d.lib CACHE FILEPATH "")
-    set(OpenCV_LIB_RELEASE ${OpenCV_BASE_PATH}/lib/opencv_world310.lib CACHE FILEPATH "")
+    set(OpenCV_LIB_DEBUG ${OpenCV_BASE_PATH}/lib/opencv_world320d.lib CACHE FILEPATH "")
+    set(OpenCV_LIB_RELEASE ${OpenCV_BASE_PATH}/lib/opencv_world320.lib CACHE FILEPATH "")
     set(OpenCV_LIBS debug ${OpenCV_LIB_DEBUG} optimized ${OpenCV_LIB_RELEASE})
-    set(OpenCV_INCLUDES ${OpenCV_BASE_PATH}/../../include/ CACHE PATH "")
+    set(OpenCV_INCLUDES ${OpenCV_BASE_PATH}/include/ CACHE PATH "")
   endif()
   set(OpenCV_BASE_PATH $ENV{OPENCV_310} CACHE PATH "")
+  
+  
+    set(LIBUSB_LIB_DEBUG ../lib/libusbd CACHE FILEPATH "")
+    set(LIBUSB_LIB_RELEASE ../lib/libusb CACHE FILEPATH "")
+    set(LIBUSB_LIBS debug ${LIBUSB_LIB_DEBUG} optimized ${LIBUSB_LIB_RELEASE})  
+  
 endif()
 
 # ========================================================================================= SOURCES
 
 set(monosource
-  src/singlecamcalibration.cpp)
+  src/singlecamcalibration.cpp
+  src/CameraPS3Eye.cpp
+  src/ps3eye.cpp
+  src/ps3eye_capi.cpp
+  src/stdafx.cpp)
 
 set(stereosource
-  src/stereocamcalibration.cpp)
+  src/stereocamcalibration.cpp
+  src/CameraPS3Eye.cpp
+  src/ps3eye.cpp
+  src/ps3eye_capi.cpp
+  src/stdafx.cpp)
   
 # ========================================================================================= HEADERS
 
+set(monoheader
+  include/Camera.h
+  include/CameraPS3Eye.h
+  include/libusb.h
+  include/ps3eye.h
+  include/ps3eye_capi.h
+  include/stdafx.h)
+
 set(stereoheader
-  include/CLEyeCameraCapture.h)
+  include/Camera.h
+  include/CameraPS3Eye.h
+  include/libusb.h
+  include/ps3eye.h
+  include/ps3eye_capi.h
+  include/stdafx.h)
 
 # ========================================================================================= PROJECT
 
@@ -61,15 +89,17 @@ else()
   set(CMAKE_EXE_LINKER_FLAGS "/NODEFAULTLIB:LIBCMT /LTCG")
 endif()
 
-add_executable(singlecamcalibration ${monosource})
+add_executable(singlecamcalibration ${monosource} ${monoheader})
 
 add_executable(stereocamcalibration ${stereosource} ${stereoheader}) 
 
 target_link_libraries(singlecamcalibration 
-  ${OpenCV_LIBS})
+  ${OpenCV_LIBS}
+  ${LIBUSB_LIBS})
 
 target_link_libraries(stereocamcalibration 
-  ${OpenCV_LIBS})  
+  ${OpenCV_LIBS}
+  ${LIBUSB_LIBS})
 
 if(WIN32)
   set_target_properties(singlecamcalibration PROPERTIES

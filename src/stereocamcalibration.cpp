@@ -24,8 +24,6 @@ SHORT WINAPI GetAsyncKeyState(
 // ***************************************************
 // CAMERA DATA
 
-
-
 static CameraPS3Eye *VidCapLeft;
 static CameraPS3Eye *VidCapRight;
 
@@ -70,61 +68,6 @@ static Mat img_r, rimg_r, cimg_r;
 static Mat canvasPart_left;
 static Mat canvasPart_right;
 
-/*
-
-//static CLEyeCameraCapture *VidCapLeft;
-//static CLEyeCameraCapture *VidCapRight;
-
-//static void *userdata_left;
-//static void *userdata_right;
-
-static void cameracallback_left(cv::Mat frame, void *userdata) {
-
-	//transpose(frame, frame);
-	flip(frame, frame, 0);
-	flip(frame, frame, 1);
-
-	frame.copyTo(current_frame_left);
-	newframe_left = true;
-
-}
-
-static void cameracallback_right(cv::Mat frame, void *userdata) {
-
-	//transpose(frame, frame);
-	//flip(frame, frame, 1);
-
-	frame.copyTo(current_frame_right);
-	newframe_right = true;
-}
-
-
-bool startCameras()
-{
-
-	int numCams = CLEyeGetCameraCount();
-
-	if (numCams < 2) {
-		cout << "No or not enough cameras for dual cam mode connected !" << endl;
-		return false;
-	}
-
-	char windowName[64];
-	// Query unique camera uuid
-	GUID guid_left = CLEyeGetCameraUUID(0);
-	GUID guid_right = CLEyeGetCameraUUID(1);
-	
-	// Create camera capture object
-	VidCapLeft = new CLEyeCameraCapture(windowName, guid_left, CLEYE_COLOR_PROCESSED, 0, false, false);
-	VidCapLeft->setCallback(cameracallback_left, userdata_left);
-
-	VidCapRight = new CLEyeCameraCapture(windowName, guid_right, CLEYE_COLOR_PROCESSED, 1, false, false);
-	VidCapRight->setCallback(cameracallback_right, userdata_right);
-
-	return (VidCapLeft->StartCapture() && VidCapRight->StartCapture());
-}
-*/
-
 bool startCameras()
 {
 
@@ -140,43 +83,29 @@ bool startCameras()
 		return false;
 	}
 
-	char windowName[64];
-	// Query unique camera uuid
-	//GUID guid_left = CLEyeGetCameraUUID(0);
-	//GUID guid_right = CLEyeGetCameraUUID(1);
-
-	// Create camera capture object
-	//VidCapLeft = new CLEyeCameraCapture(windowName, guid_left, CLEYE_COLOR_PROCESSED, 0, false, false);
-	//VidCapLeft->setCallback(cameracallback_left, userdata_left);
-
-	//VidCapRight = new CLEyeCameraCapture(windowName, guid_right, CLEYE_COLOR_PROCESSED, 1, false, false);
-	//VidCapRight->setCallback(cameracallback_right, userdata_right);
-
+	// create and initialize two sony ps3 eye cameras
 	VidCapLeft = new CameraPS3Eye();
 	VidCapRight = new CameraPS3Eye();
-	
 	bool success = (VidCapLeft->initialize(640,480,3,60,0) && VidCapRight->initialize(640, 480, 3, 60, 1));
+
+	// adjust camera settings
 	if (success)
 	{
-	
 		VidCapLeft->_autogain = true;
 		VidCapLeft->_autowhitebalance = true;
 		VidCapLeft->_flipVertically = true;
-		
 		VidCapLeft->updateCameraSettings();
 
 		VidCapRight->_autogain = true;
 		VidCapRight->_autowhitebalance = true;
 		VidCapRight->_flipHorizontally = true;
 		VidCapRight->updateCameraSettings();
-
-		//VidCapLeft->startCapture();
-		//VidCapRight->startCapture();
 	}
 
 	return success;
 }
 
+// update frames from both cameras
 void receiveCameraFrames()
 {
 
@@ -195,72 +124,49 @@ void checkCameraFrames(vector<Point2f> &corners_left, vector<Point2f> &corners_r
 
 
 	receiveCameraFrames();
-
-	/*
-	if (!newframe_left || !newframe_right)
-		return;
-
-	newframe_left = false;
-	newframe_right = false;
-	*/
-
-	//std::cout << "cam size " << w << "x" << h << std::endl;
-
+	
+	// adjust image regions for left and right camera frame in combined visualization frame
 	left_checker = combined(Rect(0, 0, w, h));
 	right_checker = combined(Rect(w, 0, w, h));
 
 	{
+		// copy camera frame
 		current_frame_left.copyTo(left_checker);
 		current_frame_left.copyTo(left);
 
+		// clear corner points of calibration pattern for left camera
 		corners_left.clear();
 
 		bool found = findChessboardCorners(left_checker, boardSize, corners_left,
 			CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_NORMALIZE_IMAGE);
 
-		if (found) {
-			drawChessboardCorners(left_checker, boardSize, corners_left, found);
-		}
-
-		//imshow("corners left", left_checker);
+		// draw chessboard corners if find function was successful
+		if (found) { drawChessboardCorners(left_checker, boardSize, corners_left, found); }
 	}
 
 	{
+		// copy camera frame
 		current_frame_right.copyTo(right_checker);
 		current_frame_right.copyTo(right);
 
+		// clear corner points of calibration pattern for right camera
 		corners_right.clear();
 
 		bool found = findChessboardCorners(right_checker, boardSize, corners_right,
 			CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_NORMALIZE_IMAGE);
 
-		if (found) {
-			drawChessboardCorners(right_checker, boardSize, corners_right, found);
-		}
-
-		//imshow("corners right", right_checker);
+		// draw chessboard corners if find function was successful
+		if (found) { drawChessboardCorners(right_checker, boardSize, corners_right, found);	}
+				
 	}
 
+	// show combined visualization image
 	imshow("stereo camera feed", combined);
 	waitKey(1);
-
-	/*
-	left_checker.copyTo(canvasPart_left);
-	right_checker.copyTo(canvasPart_right);
-
-	for (int j = 0; j < canvas.rows; j += 16)
-		line(canvas, Point(0, j), Point(canvas.cols, j), Scalar(0, 255, 0), 1, 8);
-
-	imshow("rectified", canvas);
-
-	//cvWaitKey(1);
-	*/
-
-
+	
 	return;
 }
 
-// ***************************************************
 
 static void StereoCalibOnline() {
 
@@ -341,9 +247,6 @@ static void StereoCalibOnline() {
 
 	cameraMatrix[0] = Mat::eye(3, 3, CV_64F);
 	cameraMatrix[1] = Mat::eye(3, 3, CV_64F);
-
-	//imageSize.height = 640;
-	//imageSize.width = 480;
 
 	double rms = stereoCalibrate(objectPoints, imagePoints[0], imagePoints[1],
 		cameraMatrix[0], distCoeffs[0],
@@ -479,49 +382,8 @@ static void StereoCalibOnline() {
 	canvasPart_left = canvas(Rect(0, 0, w, h));
 	canvasPart_right = canvas(Rect(w, 0, w, h));
 
-#if 0
-
-	for (i = 0; i < nimages; i++)
-	{
-
-		img_l = imgSamplesLeft[i]; // copy image from sample vector
-		img_r = imgSamplesRight[i];// copy image from sample vector
-
-		remap(img_l, rimg_l, rmap[0][0], rmap[0][1], CV_INTER_LINEAR);
-		remap(img_r, rimg_r, rmap[1][0], rmap[1][1], CV_INTER_LINEAR);
-
-		rimg_l.copyTo(canvasPart_left);
-		rimg_r.copyTo(canvasPart_right);
-
-		// draw some lines to evaluate rectification quality
-		for (j = 0; j < canvas.rows; j += 16)
-			line(canvas, Point(0, j), Point(canvas.cols, j), Scalar(0, 255, 0), 1, 8);
-
-		imshow("rectified", canvas);
-		char c = (char)waitKey(0);
-
-	}
-#endif
-
 	destroyAllWindows();
 }
-
-/*
-static bool readStringList( const string& filename, vector<string>& l )
-{
-l.resize(0);
-FileStorage fs(filename, FileStorage::READ);
-if( !fs.isOpened() )
-return false;
-FileNode n = fs.getFirstTopLevelNode();
-if( n.type() != FileNode::SEQ )
-return false;
-FileNodeIterator it = n.begin(), it_end = n.end();
-for( ; it != it_end; ++it )
-l.push_back((string)*it);
-return true;
-}
-*/
 
 static bool readCalibration() {
 
@@ -659,71 +521,11 @@ int main(int argc, char** argv)
 		Sleep(5);
 	}
 
-	
+	// deinitialize both cameras	
 	VidCapLeft->deinitialize();
 	VidCapRight->deinitialize();
 
 	// run validation by image rectification
 	return 0;
-
-#if 0
-
-	Size boardSize;
-	string imagelistfn;
-	bool showRectified = true;
-
-	for (int i = 1; i < argc; i++)
-	{
-		if (string(argv[i]) == "-w")
-		{
-			if (sscanf(argv[++i], "%d", &boardSize.width) != 1 || boardSize.width <= 0)
-			{
-				cout << "invalid board width" << endl;
-				return print_help();
-			}
-		}
-		else if (string(argv[i]) == "-h")
-		{
-			if (sscanf(argv[++i], "%d", &boardSize.height) != 1 || boardSize.height <= 0)
-			{
-				cout << "invalid board height" << endl;
-				return print_help();
-			}
-		}
-		else if (string(argv[i]) == "-nr")
-			showRectified = false;
-		else if (string(argv[i]) == "--help")
-			return print_help();
-		else if (argv[i][0] == '-')
-		{
-			cout << "invalid option " << argv[i] << endl;
-			return 0;
-		}
-		else
-			imagelistfn = argv[i];
-	}
-
-	if (imagelistfn == "")
-	{
-		imagelistfn = "stereo_calib.xml";
-		boardSize = Size(9, 6);
-	}
-	else if (boardSize.width <= 0 || boardSize.height <= 0)
-	{
-		cout << "if you specified XML file with chessboards, you should also specify the board width and height (-w and -h options)" << endl;
-		return 0;
-	}
-
-	vector<string> imagelist;
-	bool ok = readStringList(imagelistfn, imagelist);
-	if (!ok || imagelist.empty())
-	{
-		cout << "can not open " << imagelistfn << " or the string list is empty" << endl;
-		return print_help();
-	}
-
-	StereoCalib(imagelist, boardSize, true, showRectified);
-	return 0;
-#endif
 
 }
