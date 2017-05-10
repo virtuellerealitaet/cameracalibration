@@ -75,8 +75,7 @@ bool CameraPS3Eye::initialize(
 			LOGCON("Initialization of PS3 Eye Cam successful !\n");
 
 			startCapture();
-
-
+			
 			_resolution.x = _cameraPtr->getWidth();
 			_resolution.y = _cameraPtr->getHeight();
 			_framerate = _cameraPtr->getFrameRate();
@@ -164,6 +163,11 @@ void CameraPS3Eye::updateCameraSettings() {
 	bool flipVertical	= _cameraPtr->getFlipV();
 	bool flipHorizontal = _cameraPtr->getFlipH();
 
+	bool autoGain			= _cameraPtr->getAutogain();
+	bool autoWhiteBalance	= _cameraPtr->getAutoWhiteBalance();
+		
+	
+
 	float multiplier = 256.f;
 
 	if (exposure != _exposure)		{
@@ -188,6 +192,16 @@ void CameraPS3Eye::updateCameraSettings() {
 		_cameraPtr->setSharpness(uint8_t(_sharpness));
 		LOGCON("Setting sharpness to %d\n", uint8_t(_gain));
 		LOGWARNING("sharpness filter not implemented yet!\n");
+	}
+
+	if (autoGain != _autogain) {
+		_cameraPtr->setAutogain(_autogain);
+		LOGCON("Setting autogain to %d\n", _autogain);
+	}
+
+	if (autoWhiteBalance != _autowhitebalance) {
+		_cameraPtr->setAutoWhiteBalance(_autowhitebalance);
+		LOGCON("Setting autoWhiteBalance to %d\n", _autowhitebalance);
 	}
 
 	//if (flipVertical != _flipVertically || flipHorizontal != _flipHorizontally) {

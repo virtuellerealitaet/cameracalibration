@@ -477,6 +477,12 @@ int main( int argc, char** argv )
 	{
 		if (!pseye->initialize())
 			return fprintf(stderr, "Could not initialize Sony Eye Cam ! \n"), -2;
+		else
+		{
+			pseye->_autogain = true;
+			pseye->_autowhitebalance = true;
+			pseye->updateCameraSettings();
+		}
 	}
 	else
 	{

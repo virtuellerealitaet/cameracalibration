@@ -81,8 +81,11 @@ public:
 	int		_contrast	= 0;
 	int		_sharpness	= 0;
 	
-	bool	_flipHorizontally = false;
-	bool	_flipVertically = false;
+	bool	_autogain			= false;
+	bool	_autowhitebalance	= false;
+
+	bool	_flipHorizontally	= false;
+	bool	_flipVertically		= false;
 
 private:
 	ps3eye::PS3EYECam::PS3EYERef _cameraPtr;
