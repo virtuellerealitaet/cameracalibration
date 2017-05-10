@@ -9,6 +9,13 @@ start program with the following parameters
 ```
 singlecamcalibration.exe -w 9 -h 6 -pt chessboard -n 15 -d 2000 -o mycam -op -oe
 ```
+
+In case you are using the Sony Eye 3 camera using the dedicated driver for this camera may work better. This driver can be chosen by the flag -useSonyEye
+
+```
+singlecamcalibration.exe -useSonyEye -w 9 -h 6 -pt chessboard -n 15 -d 2000 -o mycam -op -oe
+```
+
 increase the number of images (-n) to increase calibration quality
 increase the duration between image capture (-d) in milliseconds to have more time repositioning the camera/checkerboard
 change the output name of the calibration file (-o) if required
