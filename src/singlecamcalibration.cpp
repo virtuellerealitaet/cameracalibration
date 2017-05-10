@@ -1,12 +1,48 @@
-#include "opencv2/core/core.hpp"
-#include "opencv2/imgproc/imgproc.hpp"
-#include "opencv2/calib3d/calib3d.hpp"
-#include "opencv2/highgui/highgui.hpp"
+/*****************************************************************************
+* Application :		Camera Calibration Application
+*					using OpenCV3 (http://opencv.org/)
+*					and PS3EYEDriver C API Interface (by Thomas Perl)
+*
+* Author      :		Michael Stengel <virtuellerealitaet@gmail.com>
+*
+* All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are met:
+*
+*    1. Redistributions of source code must retain the above copyright
+*       notice, this list of conditions and the following disclaimer.
+*
+*    2. Redistributions in binary form must reproduce the above copyright
+*       notice, this list of conditions and the following disclaimer in the
+*       documentation and/or other materials provided with the distribution.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+* AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+* IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+* ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+* LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+* CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+* SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+* INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+* CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+* ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+* POSSIBILITY OF SUCH DAMAGE.
+**/
 
-#include <cctype>
-#include <stdio.h>
-#include <string.h>
-#include <time.h>
+#include <stdafx.h>
+
+//#include "opencv2/core/core.hpp"
+//#include "opencv2/imgproc/imgproc.hpp"
+//#include "opencv2/calib3d/calib3d.hpp"
+//#include "opencv2/highgui/highgui.hpp"
+
+//#include <cctype>
+//#include <stdio.h>
+//#include <string.h>
+//#include <time.h>
+
+#include "CameraPS3Eye.h"
 
 using namespace cv;
 using namespace std;
@@ -303,7 +339,11 @@ int main( int argc, char** argv )
     bool writeExtrinsics = false, writePoints = false;
     bool undistortImage = false;
     int flags = 0;
-    VideoCapture capture;
+    
+	VideoCapture capture;
+	CameraPS3Eye *pseye;
+
+
     bool flipVertical = false;
     bool showUndistorted = false;
     bool videofile = false;
@@ -314,6 +354,8 @@ int main( int argc, char** argv )
     vector<vector<Point2f> > imagePoints;
     vector<string> imageList;
     Pattern pattern = CHESSBOARD;
+
+	bool useEyeCam = false;
 
     if( argc < 2 )
     {
@@ -406,9 +448,15 @@ int main( int argc, char** argv )
             else
                 inputFilename = s;
         }
+		else if (strcmp(s, "-useSonyEye") == 0 )
+		{
+			useEyeCam = true;
+		}
         else
             return fprintf( stderr, "Unknown option %s", s ), -1;
     }
+
+	bool captureIsOpen = false;
 
     if( inputFilename )
     {
@@ -417,17 +465,32 @@ int main( int argc, char** argv )
         else
             capture.open(inputFilename);
     }
-    else
-        capture.open(cameraId);
+	else
+	{
+		if (useEyeCam)
+			pseye = new CameraPS3Eye();
+		else
+			capture.open(cameraId);
+	}
+    
+	if (useEyeCam)
+	{
+		if (!pseye->initialize())
+			return fprintf(stderr, "Could not initialize Sony Eye Cam ! \n"), -2;
+	}
+	else
+	{
+		if (!capture.isOpened() && imageList.empty())
+			return fprintf(stderr, "Could not initialize video (%d) capture\n", cameraId), -2;
+		else
+			printf("%s", liveCaptureHelp);
+	}
 
-    if( !capture.isOpened() && imageList.empty() )
-        return fprintf( stderr, "Could not initialize video (%d) capture\n",cameraId ), -2;
+	captureIsOpen = true;
+
 
     if( !imageList.empty() )
         nframes = (int)imageList.size();
-
-    if( capture.isOpened() )
-        printf( "%s", liveCaptureHelp );
 
     namedWindow( "Image View", 1 );
 
@@ -436,7 +499,14 @@ int main( int argc, char** argv )
         Mat view, viewGray;
         bool blink = false;
 
-        if( capture.isOpened() )
+		if (useEyeCam)
+		{
+			Mat view0;
+			view0 = pseye->receiveFrame();
+			view0.copyTo(view);
+			
+		}
+		else if( capture.isOpened() )
         {
             Mat view0;
             capture >> view0;
@@ -485,11 +555,11 @@ int main( int argc, char** argv )
             Size(-1,-1), TermCriteria( CV_TERMCRIT_EPS+CV_TERMCRIT_ITER, 30, 0.1 ));
 
         if( mode == CAPTURING && found &&
-           (!capture.isOpened() || clock() - prevTimestamp > delay*1e-3*CLOCKS_PER_SEC) )
+           (!captureIsOpen || clock() - prevTimestamp > delay*1e-3*CLOCKS_PER_SEC) )
         {
             imagePoints.push_back(pointbuf);
             prevTimestamp = clock();
-            blink = capture.isOpened();
+            blink = captureIsOpen;
         }
 
         if(found)
@@ -522,7 +592,7 @@ int main( int argc, char** argv )
         }
 
         imshow("Image View", view);
-        int key = 0xff & waitKey(capture.isOpened() ? 50 : 500);
+        int key = 0xff & waitKey(captureIsOpen ? 50 : 500);
 
         if( (key & 255) == 27 )
             break;
@@ -530,7 +600,7 @@ int main( int argc, char** argv )
         if( key == 'u' && mode == CALIBRATED )
             undistortImage = !undistortImage;
 
-        if( capture.isOpened() && key == 'g' )
+        if(captureIsOpen && key == 'g' )
         {
             mode = CAPTURING;
             imagePoints.clear();
@@ -545,12 +615,12 @@ int main( int argc, char** argv )
                 mode = CALIBRATED;
             else
                 mode = DETECTION;
-            if( !capture.isOpened() )
+            if( !captureIsOpen)
                 break;
         }
     }
 
-    if( !capture.isOpened() && showUndistorted )
+    if( !captureIsOpen && showUndistorted )
     {
         Mat view, rview, map1, map2;
         initUndistortRectifyMap(cameraMatrix, distCoeffs, Mat(),
@@ -570,6 +640,12 @@ int main( int argc, char** argv )
                 break;
         }
     }
+
+	if (useEyeCam)
+	{
+		pseye->deinitialize();
+		delete pseye;
+	}
 
     return 0;
 }
