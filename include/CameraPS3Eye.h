@@ -56,7 +56,8 @@ public:
 	bool initialize(unsigned int camResolutionWidth,
 		unsigned int camResolutionHeight,
 		unsigned int numColorChannels,
-		unsigned int framerate);
+		unsigned int framerate,
+		unsigned int deviceID);
 	void deinitialize();
 
 	void startCapture();

@@ -112,6 +112,10 @@
 #include <set>
 #include <typeinfo>
 #include <algorithm>
+#include <iterator>
+#include <stdio.h>
+#include <stdlib.h>
+#include <ctype.h>
 
 // OpenCV
 #include <opencv2\core.hpp>

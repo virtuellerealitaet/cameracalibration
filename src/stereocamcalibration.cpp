@@ -10,22 +10,9 @@
 //
 // *******************************************************************
 
-#include "opencv2/calib3d/calib3d.hpp"
-#include "opencv2/highgui/highgui.hpp"
-#include "opencv2/imgproc/imgproc.hpp"
+#include <stdafx.h>
 
-#include "CLEyeCameraCapture.h"
-
-#include <vector>
-#include <string>
-#include <algorithm>
-#include <iostream>
-#include <iterator>
-#include <stdio.h>
-#include <stdlib.h>
-#include <ctype.h>
-
-#include <Windows.h>
+#include "CameraPS3Eye.h"
 
 using namespace cv;
 using namespace std;
@@ -37,15 +24,16 @@ SHORT WINAPI GetAsyncKeyState(
 // ***************************************************
 // CAMERA DATA
 
-static CLEyeCameraCapture *VidCapLeft;
-static CLEyeCameraCapture *VidCapRight;
+
+
+static CameraPS3Eye *VidCapLeft;
+static CameraPS3Eye *VidCapRight;
 
 static bool newframe_left = false;
 static bool newframe_right = false;
 static cv::Mat current_frame_left;
 static cv::Mat current_frame_right;
-static void *userdata_left;
-static void *userdata_right;
+
 static bool switchcameras = false;
 
 // ***************************************************
@@ -82,6 +70,14 @@ static Mat img_r, rimg_r, cimg_r;
 static Mat canvasPart_left;
 static Mat canvasPart_right;
 
+/*
+
+//static CLEyeCameraCapture *VidCapLeft;
+//static CLEyeCameraCapture *VidCapRight;
+
+//static void *userdata_left;
+//static void *userdata_right;
+
 static void cameracallback_left(cv::Mat frame, void *userdata) {
 
 	//transpose(frame, frame);
@@ -102,7 +98,9 @@ static void cameracallback_right(cv::Mat frame, void *userdata) {
 	newframe_right = true;
 }
 
-bool startCameras() {
+
+bool startCameras()
+{
 
 	int numCams = CLEyeGetCameraCount();
 
@@ -124,16 +122,87 @@ bool startCameras() {
 	VidCapRight->setCallback(cameracallback_right, userdata_right);
 
 	return (VidCapLeft->StartCapture() && VidCapRight->StartCapture());
+}
+*/
+
+bool startCameras()
+{
+
+	// list out the devices
+	using namespace ps3eye;
+	std::vector<PS3EYECam::PS3EYERef> devices(PS3EYECam::getDevices());
+	LOGCON("Found %d cameras.\n", (int)devices.size());
+
+	int numCams = (int)devices.size();
+
+	if (numCams < 2) {
+		cout << "No or not enough cameras for dual cam mode connected !" << endl;
+		return false;
+	}
+
+	char windowName[64];
+	// Query unique camera uuid
+	//GUID guid_left = CLEyeGetCameraUUID(0);
+	//GUID guid_right = CLEyeGetCameraUUID(1);
+
+	// Create camera capture object
+	//VidCapLeft = new CLEyeCameraCapture(windowName, guid_left, CLEYE_COLOR_PROCESSED, 0, false, false);
+	//VidCapLeft->setCallback(cameracallback_left, userdata_left);
+
+	//VidCapRight = new CLEyeCameraCapture(windowName, guid_right, CLEYE_COLOR_PROCESSED, 1, false, false);
+	//VidCapRight->setCallback(cameracallback_right, userdata_right);
+
+	VidCapLeft = new CameraPS3Eye();
+	VidCapRight = new CameraPS3Eye();
+	
+	bool success = (VidCapLeft->initialize(640,480,3,60,0) && VidCapRight->initialize(640, 480, 3, 60, 1));
+	if (success)
+	{
+	
+		VidCapLeft->_autogain = true;
+		VidCapLeft->_autowhitebalance = true;
+		VidCapLeft->_flipVertically = true;
+		
+		VidCapLeft->updateCameraSettings();
+
+		VidCapRight->_autogain = true;
+		VidCapRight->_autowhitebalance = true;
+		VidCapRight->_flipHorizontally = true;
+		VidCapRight->updateCameraSettings();
+
+		//VidCapLeft->startCapture();
+		//VidCapRight->startCapture();
+	}
+
+	return success;
+}
+
+void receiveCameraFrames()
+{
+
+	current_frame_left = VidCapLeft->receiveFrame();
+	current_frame_right = VidCapRight->receiveFrame();
+
+	transpose(current_frame_left, current_frame_left);
+	transpose(current_frame_right, current_frame_right);
+
+	newframe_left = true;
+	newframe_right = true;
 
 }
 
 void checkCameraFrames(vector<Point2f> &corners_left, vector<Point2f> &corners_right, cv::Mat &left, cv::Mat &right, cv::Mat &combined) {
 
+
+	receiveCameraFrames();
+
+	/*
 	if (!newframe_left || !newframe_right)
 		return;
 
 	newframe_left = false;
 	newframe_right = false;
+	*/
 
 	//std::cout << "cam size " << w << "x" << h << std::endl;
 
@@ -216,7 +285,7 @@ static void StereoCalibOnline() {
 	h = imageSize.height;
 
 	cv::Mat left, right, combined;
-	combined = Mat(h, 2 * w, CV_8UC(4));
+	combined = Mat(h, 2 * w, CV_8UC(3));
 
 	std::cout << "Press 'C' key to capture stereo image pair of checkerboard" << std::endl;
 
@@ -514,7 +583,7 @@ static void initRectification() {
 	w = imageSize.width;
 	h = imageSize.height;
 
-	canvas = Mat(h, 2 * w, CV_8UC(4));
+	canvas = Mat(h, 2 * w, CV_8UC(3));
 
 	canvasPart_left = canvas(Rect(0, 0, w, h));
 	canvasPart_right = canvas(Rect(w, 0, w, h));
@@ -569,7 +638,10 @@ int main(int argc, char** argv)
 
 	initRectification();
 
-	while (true) {
+	while (true)
+	{
+
+		receiveCameraFrames();
 
 		rectifyCameraImages();
 
@@ -586,6 +658,10 @@ int main(int argc, char** argv)
 
 		Sleep(5);
 	}
+
+	
+	VidCapLeft->deinitialize();
+	VidCapRight->deinitialize();
 
 	// run validation by image rectification
 	return 0;

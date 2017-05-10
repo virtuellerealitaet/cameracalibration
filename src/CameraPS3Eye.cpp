@@ -36,15 +36,16 @@
 
 bool CameraPS3Eye::initialize() {
 
-	return initialize(640, 480, 3, 60);		// 60 Hz VGA
-	// return initialize(320, 240, 3, 120);		// 120 Hz QVGA
+	return initialize(640, 480, 3, 60, 0);			// 60 Hz VGA
+	// return initialize(320, 240, 3, 120, 0);		// 120 Hz QVGA
 }
 
 bool CameraPS3Eye::initialize(
 	unsigned int camResolutionWidth = 640,
 	unsigned int camResolutionHeight = 320,
 	unsigned int numColorChannels = 3,
-	unsigned int framerate = 5)
+	unsigned int framerate = 5,
+	unsigned int deviceID = 0)
 {
 
 	_resolution.x = camResolutionWidth;
@@ -64,7 +65,7 @@ bool CameraPS3Eye::initialize(
 
 	if (devices.size() > 0)
 	{
-		_cameraPtr = devices.at(0);
+		_cameraPtr = devices.at(deviceID);
 		initializationResult = _cameraPtr->init(_resolution.x, _resolution.y, _framerate);
 
 		
