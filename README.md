@@ -1,5 +1,7 @@
 # Camera Calibration for monocular and stereo camera setup using OpenCV
 
+Info : The provided code has been tested only under Visual Studio 2015, x64, Windows 10.
+
 ## Method 1 : Single Camera calibration using live camera stream
 
 
