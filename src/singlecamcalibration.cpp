@@ -31,17 +31,6 @@
 **/
 
 #include <stdafx.h>
-
-//#include "opencv2/core/core.hpp"
-//#include "opencv2/imgproc/imgproc.hpp"
-//#include "opencv2/calib3d/calib3d.hpp"
-//#include "opencv2/highgui/highgui.hpp"
-
-//#include <cctype>
-//#include <stdio.h>
-//#include <string.h>
-//#include <time.h>
-
 #include "CameraPS3Eye.h"
 
 using namespace cv;
@@ -594,7 +583,21 @@ int main( int argc, char** argv )
         if( mode == CALIBRATED && undistortImage )
         {
             Mat temp = view.clone();
-            undistort(temp, view, cameraMatrix, distCoeffs);
+            //undistort(temp, view, cameraMatrix, distCoeffs);
+
+			Mat map1, map2;
+			
+			initUndistortRectifyMap(cameraMatrix, distCoeffs, Mat(), getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 0.0), imageSize, CV_16SC2, map1, map2);
+			//remap(temp, view, map1, map2, INTER_LINEAR);
+			undistort(temp, view, cameraMatrix, distCoeffs, getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1.0));
+
+
+			//Mat newCamMat;
+			//fisheye::estimateNewCameraMatrixForUndistortRectify(cameraMatrix, distCoeffs, imageSize, Matx33d::eye(), newCamMat, 0);
+			//fisheye::initUndistortRectifyMap(cameraMatrix, distCoeffs, Matx33d::eye(), newCamMat, imageSize, CV_16SC2, map1, map2);
+
+			//fisheye::undistortImage(temp, view, cameraMatrix, distCoeffs);
+
         }
 
         imshow("Image View", view);
@@ -629,17 +632,31 @@ int main( int argc, char** argv )
     if( !captureIsOpen && showUndistorted )
     {
         Mat view, rview, map1, map2;
-        initUndistortRectifyMap(cameraMatrix, distCoeffs, Mat(),
-                                getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1, imageSize, 0),
-                                imageSize, CV_16SC2, map1, map2);
+        //initUndistortRectifyMap(cameraMatrix, distCoeffs, Mat(),
+        //                        getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1.0, imageSize, 0),
+        //                        imageSize, CV_16SC2, map1, map2);
+
+		Mat newCamMat;
+		fisheye::estimateNewCameraMatrixForUndistortRectify(cameraMatrix, distCoeffs, imageSize, Matx33d::eye(), newCamMat, 0);
+		fisheye::initUndistortRectifyMap(cameraMatrix, distCoeffs, Matx33d::eye(), newCamMat, imageSize, CV_16SC2, map1, map2);
+
 
         for( i = 0; i < (int)imageList.size(); i++ )
         {
             view = imread(imageList[i], 1);
             if(!view.data)
                 continue;
-            undistort( view, rview, cameraMatrix, distCoeffs, cameraMatrix );
-            //remap(view, rview, map1, map2, INTER_LINEAR);
+            
+			//undistort( view, rview, cameraMatrix, distCoeffs, cameraMatrix );
+            
+			
+
+			//remap(view, rview, map1, map2, INTER_LINEAR);
+
+			fisheye::undistortImage(view, rview, cameraMatrix, distCoeffs);
+
+			//remap(view, rview, map1, map2, INTER_LINEAR);
+
             imshow("Image View", rview);
             int c = 0xff & waitKey();
             if( (c & 255) == 27 || c == 'q' || c == 'Q' )

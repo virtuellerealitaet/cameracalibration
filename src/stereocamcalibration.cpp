@@ -167,7 +167,6 @@ void checkCameraFrames(vector<Point2f> &corners_left, vector<Point2f> &corners_r
 	return;
 }
 
-
 static void StereoCalibOnline() {
 
 	// *******************************************************************************
@@ -241,6 +240,21 @@ static void StereoCalibOnline() {
 				objectPoints[i].push_back(Point3f(j*squareSize, k*squareSize, 0));
 	}
 
+
+	// save calibration points parameters
+	FileStorage fs("calibrationpoints.yml", CV_STORAGE_WRITE);
+	if (fs.isOpened())
+	{
+		fs << "numImages" << nimages;
+		fs << "objectPoints" << objectPoints;
+		fs << "imagePoints1" << imagePoints[0];
+		fs << "imagePoints2" << imagePoints[1];
+
+		fs.release();
+	}
+	else
+		cout << "Error: can not save the intrinsic parameters\n";
+
 	cout << "Running stereo calibration ...\n";
 
 	// compute intrinsics
@@ -248,38 +262,64 @@ static void StereoCalibOnline() {
 	cameraMatrix[0] = Mat::eye(3, 3, CV_64F);
 	cameraMatrix[1] = Mat::eye(3, 3, CV_64F);
 
-	double rms = stereoCalibrate(objectPoints, imagePoints[0], imagePoints[1],
-		cameraMatrix[0], distCoeffs[0],
-		cameraMatrix[1], distCoeffs[1],
-		imageSize, R, T, E, F,
+	double rms = stereoCalibrate(
+		objectPoints,					// Vector of vectors of the calibration pattern points
+		imagePoints[0],					// Vector of vectors of the projections of the calibration pattern points, observed by the first camera
+		imagePoints[1],					// Vector of vectors of the projections of the calibration pattern points, observed by the second camera
+		cameraMatrix[0],				// Input/output first camera matrix
+		distCoeffs[0],					// Input/output vector of distortion coefficients 
+		cameraMatrix[1],				// input / output second camera matrix.The parameter is similar to cameraMatrix1
+		distCoeffs[1],					// 	Input/output lens distortion coefficients for the second camera. The parameter is similar to distCoeffs1
+		imageSize,						// Size of the image used only to initialize intrinsic camera matrix.
+		R,								// Output rotation matrix between the 1st and the 2nd camera coordinate systems.
+		T,								// Output translation vector between the coordinate systems of the cameras.
+		E,								// Output essential matrix.
+		F,								// Output fundamental matrix.
 		CV_CALIB_FIX_ASPECT_RATIO +
-		CV_CALIB_ZERO_TANGENT_DIST +
-		CV_CALIB_SAME_FOCAL_LENGTH +
-		CV_CALIB_RATIONAL_MODEL +
-		CV_CALIB_FIX_K3 + CV_CALIB_FIX_K4 + CV_CALIB_FIX_K5 //+CV_CALIB_FIX_INTRINSIC
-		,TermCriteria(CV_TERMCRIT_ITER + CV_TERMCRIT_EPS, 100, 1e-5)
+		CV_CALIB_ZERO_TANGENT_DIST +	// Set tangential distortion coefficients for each camera to zeros and fix there.
+		CV_CALIB_SAME_FOCAL_LENGTH +	// Enforce f(0)x=f(1)x and f(0)y=f(1)y .
+		CV_CALIB_RATIONAL_MODEL +		// Enable coefficients k4, k5, and k6.
+		CV_CALIB_FIX_K3 + CV_CALIB_FIX_K4 + CV_CALIB_FIX_K5	// Do not change the corresponding radial distortion coefficient during the optimization.
+		//+CV_CALIB_FIX_INTRINSIC
+		,TermCriteria(CV_TERMCRIT_ITER + CV_TERMCRIT_EPS, 100, 1e-5)	// Termination criteria for the iterative optimization algorithm.
 		);
 	cout << "done with RMS error=" << rms << endl;
 
 
 	// save intrinsic parameters
-	FileStorage fs("intrinsics.yml", CV_STORAGE_WRITE);
-	if (fs.isOpened())
 	{
-		fs << "M1" << cameraMatrix[0] << "D1" << distCoeffs[0] <<
-			"M2" << cameraMatrix[1] << "D2" << distCoeffs[1];
-		fs.release();
+		fs.open("intrinsics.yml", CV_STORAGE_WRITE);
+		if (fs.isOpened())
+		{
+			fs << "M1" << cameraMatrix[0] << "D1" << distCoeffs[0] <<
+				"M2" << cameraMatrix[1] << "D2" << distCoeffs[1];
+			fs.release();
+		}
+		else
+			cout << "Error: can not save the intrinsic parameters\n";
 	}
-	else
-		cout << "Error: can not save the intrinsic parameters\n";
-
 
 	// compute and save extrinsics
 
-	stereoRectify(cameraMatrix[0], distCoeffs[0],
-		cameraMatrix[1], distCoeffs[1],
-		imageSize, R, T, R1, R2, P1, P2, Q,
-		CALIB_ZERO_DISPARITY, 1, imageSize, &validRoi[0], &validRoi[1]);
+	stereoRectify(
+		cameraMatrix[0],		// first camera matrix
+		distCoeffs[0],			// first camera lens distortion parameters
+		cameraMatrix[1],		// second camera matrix
+		distCoeffs[1],			// second camera lens distortion parameters
+		imageSize,				// image size used for stereo calibration
+		R,						// rotation matrix between cameras
+		T,						// translation vector between cameras
+		R1, R2,					// output of rectification matrices for first and second camera
+		P1, P2,					// output of projection matrices for first and second camera
+		Q,						// 4x4 disparity-to-depth mapping matrix (used for reprojectImageTo3D () )
+		CALIB_ZERO_DISPARITY,	// principal points for both views have the same pixel coordinate in rectified views, without flag images can still be shifted !
+		1,						// alpha for scaling (-1 default, 0 -> zoom in so that only valid pixels are visible, 1 -> all pixels remain visible
+		imageSize,				// new image resolution after rectification, same should be given to initUndistortRectifyMap()
+		&validRoi[0],			// for visualization of valid pixels in view of first camera
+		&validRoi[1]			// for visualization of valid pixels in view of second camera
+		);
+	
+	// save extrinsics
 
 	fs.open("extrinsics.yml", CV_STORAGE_WRITE);
 	if (fs.isOpened())
@@ -484,8 +524,7 @@ int main(int argc, char** argv)
 		cout << "Exiting.";
 		return 0;
 	}
-
-
+	
 	// read rectification information
 	if (!readCalibration()) {
 		cout << "no calibration existing or not readable. perform new calibration ? ('Y' / 'N' )";
