@@ -155,6 +155,8 @@ void CameraPS3Eye::Run()
 
 	frame_bgr = new uint8_t[_resolution.x * _resolution.y * _numColorChannels];
 
+
+
 	// image capturing loop
 	while (_running && _cameraPtr)
 	{
@@ -181,10 +183,10 @@ void CameraPS3Eye::Run()
 		if (processFrame)
 		{
 
-
 			// copy camera frame to OpenCV image
 			cv::Mat frame;
 			frame = cv::Mat(_resolution.y, _resolution.x, CV_8UC3);
+
 			unsigned char *input = (unsigned char*)(frame.data);
 			memcpy(input, frame_bgr, sizeof(uint8_t) * _resolution.x * _resolution.y * _numColorChannels);
 
@@ -199,6 +201,8 @@ void CameraPS3Eye::Run()
 			processFrame(frame, userdata);
 
 		}
+
+		//Sleep(3);
 
 		//LeaveCriticalSection(mutex);
 

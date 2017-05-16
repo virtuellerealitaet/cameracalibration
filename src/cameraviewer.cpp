@@ -47,9 +47,9 @@ static Mat combined;
 
 static bool switchcameras = false;
 
-static int camera_width = 320;
-static int camera_height = 240;
-static float camera_fps = 120.f;
+static int camera_width		= 320;
+static int camera_height	= 240;
+static float camera_fps		= 190.f;
 
 
 static void cameracallback_left(cv::Mat frame, void *userdata)
@@ -100,19 +100,21 @@ bool startCameras()
 	// adjust camera settings
 	if (success)
 	{
-		//VidCapLeft->_autogain = true;
-		//VidCapLeft->_autowhitebalance = true;
-		//VidCapLeft->_flipVertically = true;
-		//VidCapLeft->_exposure = 100.f;
-		//VidCapLeft->updateCameraSettings();
 		VidCapLeft->startCapture();
-
-		//VidCapRight->_autogain = true;
-		//VidCapRight->_autowhitebalance = true;
-		//VidCapRight->_flipHorizontally = true;
-		//VidCapRight->_exposure = 100.f;
-		//VidCapRight->updateCameraSettings();
+		
+		VidCapLeft->_autogain = true;
+		VidCapLeft->_autowhitebalance = true;
+		VidCapLeft->_flipVertically = true;
+		VidCapLeft->_exposure = 20.f;
+		VidCapLeft->updateCameraSettings();
+		
 		VidCapRight->startCapture();
+		VidCapRight->_autogain = true;
+		VidCapRight->_autowhitebalance = true;
+		VidCapRight->_flipHorizontally = true;
+		VidCapRight->_exposure = 200.f;
+		VidCapRight->updateCameraSettings();
+		
 	}
 
 	return success;
@@ -151,7 +153,7 @@ int main(int argc, char** argv)
 	// register mouse event callback for new window
 	//namedWindow("lefteye");
 	//namedWindow("righteye");
-	namedWindow("combined");
+	//namedWindow("combined");
 
 
 	clock_t startTime = clock(); //Start timer
@@ -160,11 +162,17 @@ int main(int argc, char** argv)
 
 	long numFrames = 0;
 
-	VideoWriter writer;
-	writer.open("dualcam.avi", VideoWriter::fourcc('M', 'J', 'P', 'G'), 30.0, cv::Size(2 * camera_width, camera_height), true);
-	
+	bool writeFrames = false;
 
-	while (true)
+	
+	VideoWriter writer;
+	
+	if (writeFrames)
+		writer.open("dualcam.avi", VideoWriter::fourcc('M', 'J', 'P', 'G'), 30.0, cv::Size(2 * camera_width, camera_height), true);
+	
+	bool stop = false;
+
+	while (!stop)
 	{
 
 		//receiveCameraFrames();
@@ -172,37 +180,42 @@ int main(int argc, char** argv)
 		if (newframe_left && newframe_right)
 		{
 
-			current_frame_left.copyTo(left_roi);
-			current_frame_right.copyTo(right_roi);
+			if (writeFrames)
+			{
+				current_frame_left.copyTo(left_roi);
+				current_frame_right.copyTo(right_roi);
+				writer << combined;
+			}
 
 			newframe_left = false;
 			newframe_right = false;
 			
-			//writer << combined;
 
-			numFrames++;
+			//numFrames++;
 
-			imshow("combined", combined);
+			//imshow("combined", combined);
 			//imshow("lefteye", left_roi);
 			//imshow("righteye", right_roi);
-			waitKey(1);
+			//waitKey(1);
 
-			secondsPassed = (clock() - startTime) / CLOCKS_PER_SEC;
-			if (secondsPassed >= 1.0)
-			{
-				std::cout << numFrames << " hz" << std::endl;
-				numFrames = 0;
-				startTime = clock();
+			//secondsPassed = (clock() - startTime) / CLOCKS_PER_SEC;
+			//if (secondsPassed >= 1.0)
+			//{
+			//	std::cout << numFrames << " hz" << std::endl;
+			//	numFrames = 0;
+			//	startTime = clock();
+			//}
 
-			}
-
+			if (GetAsyncKeyState(VK_SPACE))
+				stop = true;
 
 		}
 		
 
 	}
 
-	writer.release();
+	if (writeFrames)
+		writer.release();
 
 	destroyAllWindows();
 

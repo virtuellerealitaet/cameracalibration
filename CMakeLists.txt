@@ -34,6 +34,13 @@ endif()
 
 # ========================================================================================= SOURCES
 
+set(cameraviewersource
+  src/cameraviewer.cpp
+  src/CameraPS3Eye.cpp
+  src/ps3eye.cpp
+  src/ps3eye_capi.cpp
+  src/stdafx.cpp)
+
 set(monosource
   src/singlecamcalibration.cpp
   src/CameraPS3Eye.cpp
@@ -63,6 +70,14 @@ set(stereosource
   src/stdafx.cpp)
   
 # ========================================================================================= HEADERS
+
+set(cameraviewerheader
+  include/Camera.h
+  include/CameraPS3Eye.h
+  include/libusb.h
+  include/ps3eye.h
+  include/ps3eye_capi.h
+  include/stdafx.h)
 
 set(monoheader
   include/Camera.h
@@ -103,9 +118,15 @@ else()
   set(CMAKE_EXE_LINKER_FLAGS "/NODEFAULTLIB:LIBCMT /LTCG")
 endif()
 
+add_executable(cameraviewer ${cameraviewersource} ${cameraviewerheader})
+
 add_executable(singlecamcalibration ${monosource} ${monoheader})
 
 add_executable(stereocamcalibration ${stereosource} ${stereoheader}) 
+
+target_link_libraries(cameraviewer 
+  ${OpenCV_LIBS}
+  ${LIBUSB_LIBS})
 
 target_link_libraries(singlecamcalibration 
   ${OpenCV_LIBS}
@@ -115,6 +136,15 @@ target_link_libraries(stereocamcalibration
   ${OpenCV_LIBS}
   ${LIBUSB_LIBS})
 
+  if(WIN32)
+  set_target_properties(cameraviewer PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin)
+
+  # Append "-d" to Debug Executable
+  set_target_properties(cameraviewer PROPERTIES DEBUG_POSTFIX "-d")
+endif()
+  
 if(WIN32)
   set_target_properties(singlecamcalibration PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin
