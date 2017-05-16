@@ -47,8 +47,8 @@ public:
 	
 	
 	
-	virtual void startCapture() = 0;
-	virtual void stopCapture() = 0;
+	virtual bool startCapture() = 0;
+	virtual bool stopCapture() = 0;
 
 	virtual cv::Mat receiveFrame() = 0;
 

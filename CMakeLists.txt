@@ -105,22 +105,11 @@ endif()
 
 add_executable(singlecamcalibration ${monosource} ${monoheader})
 
-add_executable(singlefisheyecamcalibration ${monosourcefisheye} ${monoheader})
-add_executable(singleomnidircamcalibration ${monosourceomnidir} ${monoheader})
-
 add_executable(stereocamcalibration ${stereosource} ${stereoheader}) 
 
 target_link_libraries(singlecamcalibration 
   ${OpenCV_LIBS}
   ${LIBUSB_LIBS})
-  
-target_link_libraries(singlefisheyecamcalibration 
-  ${OpenCV_LIBS}
-  ${LIBUSB_LIBS})
-  
-target_link_libraries(singleomnidircamcalibration 
-  ${OpenCV_LIBS}
-  ${LIBUSB_LIBS})  
 
 target_link_libraries(stereocamcalibration 
   ${OpenCV_LIBS}
@@ -135,23 +124,6 @@ if(WIN32)
   set_target_properties(singlecamcalibration PROPERTIES DEBUG_POSTFIX "-d")
 endif()
 
-if(WIN32)
-  set_target_properties(singlefisheyecamcalibration PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin)
-
-  # Append "-d" to Debug Executable
-  set_target_properties(singlefisheyecamcalibration PROPERTIES DEBUG_POSTFIX "-d")
-endif()
-
-if(WIN32)
-  set_target_properties(singleomnidircamcalibration PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin)
-
-  # Append "-d" to Debug Executable
-  set_target_properties(singleomnidircamcalibration PROPERTIES DEBUG_POSTFIX "-d")
-endif()
 
 if(WIN32)
   set_target_properties(stereocamcalibration PROPERTIES

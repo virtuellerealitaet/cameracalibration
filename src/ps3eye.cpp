@@ -513,12 +513,13 @@ public:
 		return new_frame;
 	}
 
+
 	void Dequeue(uint8_t* new_frame, int frame_width, int frame_height, PS3EYECam::EOutputFormat outputFormat)
-	{		
+	{
 		std::unique_lock<std::mutex> lock(mutex);
 
 		// If there is no data in the buffer, wait until data becomes available
-		empty_condition.wait(lock, [this] () { return available != 0; });
+		empty_condition.wait(lock, [this]() { return available != 0; });
 
 		// Copy from internal buffer
 		uint8_t* source = frame_buffer + frame_size * tail;
@@ -528,15 +529,16 @@ public:
 			memcpy(new_frame, source, frame_size);
 		}
 		else if (outputFormat == PS3EYECam::EOutputFormat::BGR ||
-				 outputFormat == PS3EYECam::EOutputFormat::RGB)
+			outputFormat == PS3EYECam::EOutputFormat::RGB)
 		{
 			Debayer(frame_width, frame_height, source, new_frame, outputFormat == PS3EYECam::EOutputFormat::BGR);
-		}		
+		}
 
 		// Update tail and available count
 		tail = (tail + 1) % num_frames;
 		available--;
 	}
+
 
 	void Debayer(int frame_width, int frame_height, const uint8_t* inBayer, uint8_t* outBuffer, bool inBGR)
 	{

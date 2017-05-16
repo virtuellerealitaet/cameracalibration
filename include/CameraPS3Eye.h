@@ -40,16 +40,50 @@ class cv::Mat;
 class CameraPS3Eye : public Camera
 {
 
+	//  threading stuff
+	HANDLE				_hThread;
+	CHAR				_windowName[256];
+	LPCRITICAL_SECTION	mutex;
+	bool				_running;
+	int					_core; // which processor thread is running on
+
+	int _currentfps, _fpsCount = 0;
+	time_t _lastTime = time(0);
+
+	/*
+	Callback function to process each captured frame.
+	*/
+	void(*processFrame)(cv::Mat frame, void *userdata) = NULL;
+	void *userdata;
+
 public:
 
-	CameraPS3Eye()
+	CameraPS3Eye(LPSTR windowName, int processorcore) :
+		_running(false),
+		_core(processorcore)
 	{
+		
+		strcpy(_windowName, windowName);
+
+		mutex = new CRITICAL_SECTION;
+
+		_cameraPtr = 0;
+
 	}
 
 	~CameraPS3Eye()
 	{
 		deinitialize();
 	}
+
+	/*
+	Apply callback function that will be called on the capturing thread for every frame.
+	*/
+	void setCallback(void(*callbackFunction)(cv::Mat frame, void *userdata), void *userData) {
+		processFrame = callbackFunction;
+		userdata = userData;
+	}
+
 
 	bool initialize();
 
@@ -60,8 +94,8 @@ public:
 		unsigned int deviceID);
 	void deinitialize();
 
-	void startCapture();
-	void stopCapture();
+	bool startCapture();
+	bool stopCapture();
 
 	unsigned int getCameraWidth() { return _resolution.x;}
 	unsigned int getCameraHeight() { return _resolution.y; }
@@ -71,7 +105,9 @@ public:
 
 	// CB function for new frame
 	cv::Mat receiveFrame();
-	
+
+	cv::Mat getFrame();
+		
 	ps3eye::PS3EYECam::PS3EYERef getCameraPtr() { return _cameraPtr; }
 
 	void updateCameraSettings();
@@ -88,6 +124,20 @@ public:
 	bool	_flipHorizontally	= false;
 	bool	_flipVertically		= false;
 
+	static DWORD WINAPI CaptureThread(LPVOID instance)
+	{
+		// seed the rng with current tick count and thread id
+		srand(GetTickCount() + GetCurrentThreadId());
+
+		// forward thread to Capture function
+		CameraPS3Eye *pThis = (CameraPS3Eye *)instance;
+		
+		pThis->Run();
+		
+		return 0;
+	}
+
+
 private:
 	ps3eye::PS3EYECam::PS3EYERef _cameraPtr;
 	
@@ -95,9 +145,14 @@ private:
 	unsigned int	_framerate;
 	unsigned int	_numColorChannels;
 
+	unsigned int	_deviceID;
+
 	uint8_t			*frame_bgr;
 	cv::Mat			_latestCamFrame;
 
 
+	void Run();
 
 };
+
+
