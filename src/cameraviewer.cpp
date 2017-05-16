@@ -28,43 +28,32 @@ SHORT WINAPI GetAsyncKeyState(
 // ***************************************************
 // CAMERA DATA
 
-static CameraPS3Eye *VidCapLeft;
-static CameraPS3Eye *VidCapRight;
+const int NUM_CAMERAS = 4;
 
-static bool newframe_left = false;
-static bool newframe_right = false;
-static cv::Mat current_frame_left;
-static cv::Mat current_frame_right;
+static CameraPS3Eye *VidCapCam[NUM_CAMERAS];
+static bool newframe[NUM_CAMERAS];
+static cv::Mat current_frame[NUM_CAMERAS];
 
-static void *userdata_left;
-static void *userdata_right;
-
-
-static cv::Mat left_roi;
-static cv::Mat right_roi;
+static cv::Mat roi[NUM_CAMERAS];
 static Mat combined;
 
 
-static bool switchcameras = false;
+//static int camera_width		= 320;
+//static int camera_height	= 240;
+//static float camera_fps		= 190.f;
 
-static int camera_width		= 320;
-static int camera_height	= 240;
-static float camera_fps		= 190.f;
+static int camera_width		= 640;
+static int camera_height	= 480;
+static float camera_fps		= 60.f;
 
-
-static void cameracallback_left(cv::Mat frame, void *userdata)
+static void cameracallback(cv::Mat frame, void *userdata)
 {
-	frame.copyTo(current_frame_left);
-	newframe_left = true;
+	int camIndex = (int)userdata;
+	//std::cout << camIndex << std::endl;
+
+	frame.copyTo(current_frame[camIndex]);
+	newframe[camIndex] = true;
 }
-
-static void cameracallback_right(cv::Mat frame, void *userdata)
-{
-	frame.copyTo(current_frame_right);
-	newframe_right = true;
-
-}
-
 
 
 bool startCameras()
@@ -77,72 +66,90 @@ bool startCameras()
 
 	int numCams = (int)devices.size();
 
-	if (numCams < 2) {
-		cout << "No or not enough cameras for dual cam mode connected !" << endl;
+	if (numCams < NUM_CAMERAS) {
+		cout << "No or not enough cameras for cam mode connected ! Required : " << NUM_CAMERAS << endl;
 		return false;
 	}
 
 	// create and initialize two sony ps3 eye cameras
-	char windowName[64];
-
-
-
-	VidCapLeft = new CameraPS3Eye("leftcam", 0);
-	VidCapRight = new CameraPS3Eye("rightcam", 0);
-
-	VidCapLeft->setCallback(cameracallback_left, userdata_left);
-	VidCapRight->setCallback(cameracallback_right, userdata_right);
-
-
-	//bool success = (VidCapLeft->initialize(640,480,3,60,0) && VidCapRight->initialize(640, 480, 3, 60, 1));
-	bool success = (VidCapLeft->initialize(camera_width, camera_height, 3, camera_fps, 0) && VidCapRight->initialize(camera_width, camera_height, 3, camera_fps, 1));
-
-	// adjust camera settings
-	if (success)
+	for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
 	{
-		VidCapLeft->startCapture();
+		VidCapCam[camIdx] = new CameraPS3Eye(camIdx);
+		VidCapCam[camIdx]->setCallback(cameracallback, (void*)camIdx);
+
 		
-		VidCapLeft->_autogain = true;
-		VidCapLeft->_autowhitebalance = true;
-		VidCapLeft->_flipVertically = true;
-		VidCapLeft->_exposure = 20.f;
-		VidCapLeft->updateCameraSettings();
+		//if (camIdx == 0 || camIdx == 2)
+		if (camIdx < 2)
+		{
+			camera_fps = 30.0;
+			camera_width = 640;
+			camera_height = 480;
+		} 
+		else
+		{
+			camera_fps = 100.0;
+			camera_width = 320;
+			camera_height = 240;
+		}
 		
-		VidCapRight->startCapture();
-		VidCapRight->_autogain = true;
-		VidCapRight->_autowhitebalance = true;
-		VidCapRight->_flipHorizontally = true;
-		VidCapRight->_exposure = 200.f;
-		VidCapRight->updateCameraSettings();
+
+
+		// init cameras and adjust camera settings
+		bool success = VidCapCam[camIdx]->initialize(camera_width, camera_height, 3, camera_fps, camIdx);
+
+		if (!success)
+			return false;
+	}
+	for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
+	{
+		
+
+		
+		VidCapCam[camIdx]->startCapture();
+		
+		Sleep(100);
+		
+		VidCapCam[camIdx]->_autogain = true;
+		VidCapCam[camIdx]->_autowhitebalance = true;
+		VidCapCam[camIdx]->_flipVertically = true;
+		VidCapCam[camIdx]->_exposure = 50.f;
+		VidCapCam[camIdx]->updateCameraSettings();
+
+		Sleep(100);
 		
 	}
+	
 
-	return success;
+	return true;
 }
-
-// update frames from both cameras
-//void receiveCameraFrames()
-//{
-//
-//	current_frame_left = VidCapLeft->receiveFrame();
-//	current_frame_right = VidCapRight->receiveFrame();
-//
-//	transpose(current_frame_left, current_frame_left);
-//	transpose(current_frame_right, current_frame_right);
-//	
-//	newframe_left = true;
-//	newframe_right = true;
-//
-//}
-
 
 int main(int argc, char** argv)
 {
+	
+	camera_width = 640;
+	camera_height = 480;
 
 
-	combined = Mat(camera_height, 2 * camera_width, CV_8UC(3));
-	left_roi = combined(Rect(0, 0, camera_width, camera_height));
-	right_roi = combined(Rect(camera_width, 0, camera_width, camera_height));
+	VideoWriter writer;
+	bool writeFrames = true;
+
+	if (writeFrames)
+		//writer.open("multicam.avi", VideoWriter::fourcc('M', 'J', 'P', 'G'), 30.0, cv::Size(NUM_CAMERAS * camera_width / 2, camera_height / 2), true);
+		writer.open("multicam.avi", VideoWriter::fourcc('M', 'J', 'P', 'G'), 30.0, cv::Size(3 * camera_width, camera_height), true);
+
+
+	//combined = Mat(camera_height, NUM_CAMERAS * camera_width, CV_8UC(3));
+	combined = Mat(camera_height, 3 * camera_width, CV_8UC(3));
+
+	//cv::Mat combined2 = Mat(camera_height / 2, NUM_CAMERAS * camera_width / 2, CV_8UC(3));
+
+	//for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
+	//	roi[camIdx] = combined(Rect(camIdx * camera_width, 0, camera_width, camera_height));
+
+	roi[0] = combined(Rect(0, 0, 640, 480));
+	roi[1] = combined(Rect(640, 0, 640, 480));
+	roi[2] = combined(Rect(2*640, 0, 320, 240));
+	roi[3] = combined(Rect(2*640+320, 0, 320, 240));
 
 	// start cameras
 	if (!startCameras()) {
@@ -151,48 +158,46 @@ int main(int argc, char** argv)
 	}
 
 	// register mouse event callback for new window
-	//namedWindow("lefteye");
-	//namedWindow("righteye");
 	//namedWindow("combined");
 
 
 	clock_t startTime = clock(); //Start timer
 	double secondsPassed;
 	double secondsToDelay = 1.0;
-
 	long numFrames = 0;
 
-	bool writeFrames = false;
 
-	
-	VideoWriter writer;
-	
-	if (writeFrames)
-		writer.open("dualcam.avi", VideoWriter::fourcc('M', 'J', 'P', 'G'), 30.0, cv::Size(2 * camera_width, camera_height), true);
 	
 	bool stop = false;
-
 	while (!stop)
 	{
 
 		//receiveCameraFrames();
 
-		if (newframe_left && newframe_right)
+		bool allFramesNew = true;
+
+		for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
+			if (!newframe[camIdx])
+				allFramesNew = false;
+
+		if (allFramesNew)
 		{
 
 			if (writeFrames)
 			{
-				current_frame_left.copyTo(left_roi);
-				current_frame_right.copyTo(right_roi);
+				for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
+					current_frame[camIdx].copyTo(roi[camIdx]);
+				
+				
+				//cv::resize(combined, combined2, combined2.size());
 				writer << combined;
 			}
 
-			newframe_left = false;
-			newframe_right = false;
-			
+			// reset camera frame status
+			for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
+				newframe[camIdx] = false;
 
 			//numFrames++;
-
 			//imshow("combined", combined);
 			//imshow("lefteye", left_roi);
 			//imshow("righteye", right_roi);
@@ -206,6 +211,7 @@ int main(int argc, char** argv)
 			//	startTime = clock();
 			//}
 
+			// stop capture after pressing space bar
 			if (GetAsyncKeyState(VK_SPACE))
 				stop = true;
 
@@ -214,16 +220,18 @@ int main(int argc, char** argv)
 
 	}
 
+	// release frame writer
 	if (writeFrames)
 		writer.release();
 
+	// release opencv windows
 	destroyAllWindows();
 
-	// deinitialize both cameras	
-	VidCapLeft->stopCapture();
-	VidCapRight->stopCapture();
+	// deinitialize cameras	
+	for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
+		VidCapCam[camIdx]->stopCapture();
 
-	// run validation by image rectification
+
 	return 0;
 
 }

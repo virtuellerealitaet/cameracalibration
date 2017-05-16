@@ -42,7 +42,7 @@ class CameraPS3Eye : public Camera
 
 	//  threading stuff
 	HANDLE				_hThread;
-	CHAR				_windowName[256];
+	//CHAR				_windowName[256];
 	LPCRITICAL_SECTION	mutex;
 	bool				_running;
 	int					_core; // which processor thread is running on
@@ -58,12 +58,12 @@ class CameraPS3Eye : public Camera
 
 public:
 
-	CameraPS3Eye(LPSTR windowName, int processorcore) :
+	CameraPS3Eye(int processorcore) :
 		_running(false),
 		_core(processorcore)
 	{
 		
-		strcpy(_windowName, windowName);
+		//strcpy(_windowName, windowName);
 
 		mutex = new CRITICAL_SECTION;
 

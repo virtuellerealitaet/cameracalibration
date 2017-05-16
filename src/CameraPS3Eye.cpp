@@ -165,7 +165,7 @@ void CameraPS3Eye::Run()
 		_cameraPtr->getFrame(frame_bgr);
 		
 		
-		//EnterCriticalSection(mutex);
+		EnterCriticalSection(mutex);
 				
 
 		// current FPS computation
@@ -174,7 +174,7 @@ void CameraPS3Eye::Run()
 			_currentfps = _fpsCount;
 			_fpsCount = 0;
 			_lastTime = time(0);
-			printf("fps = %d\n", _currentfps);
+			printf("cam %d fps = %d\n", _deviceID, _currentfps);
 		}
 
 		
@@ -202,9 +202,11 @@ void CameraPS3Eye::Run()
 
 		}
 
-		//Sleep(3);
+		LeaveCriticalSection(mutex);
 
-		//LeaveCriticalSection(mutex);
+		Sleep(5);
+
+		
 
 	}
 
@@ -225,11 +227,12 @@ bool CameraPS3Eye::startCapture()
 {
 
 	_running = true;
-	
+
 	// MUTEX CONDITION
 	InitializeCriticalSection(mutex);
 
 	// Start image capture thread
+	//DWORD threadId = _deviceID+2;
 	DWORD threadId = 0;
 	_hThread = CreateThread(NULL, 0, &CameraPS3Eye::CaptureThread, this, 0, &threadId);
 
