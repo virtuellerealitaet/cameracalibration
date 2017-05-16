@@ -28,7 +28,7 @@ SHORT WINAPI GetAsyncKeyState(
 // ***************************************************
 // CAMERA DATA
 
-const int NUM_CAMERAS = 4;
+const int NUM_CAMERAS = 1;
 
 static CameraPS3Eye *VidCapCam[NUM_CAMERAS];
 static bool newframe[NUM_CAMERAS];
@@ -45,6 +45,8 @@ static Mat combined;
 static int camera_width		= 640;
 static int camera_height	= 480;
 static float camera_fps		= 60.f;
+
+bool writeFrames = true;
 
 static void cameracallback(cv::Mat frame, void *userdata)
 {
@@ -78,14 +80,14 @@ bool startCameras()
 		VidCapCam[camIdx]->setCallback(cameracallback, (void*)camIdx);
 
 		
-		//if (camIdx == 0 || camIdx == 2)
+		// init cam 0 and cam 1 using VGA@30Hz
 		if (camIdx < 2)
 		{
 			camera_fps = 30.0;
 			camera_width = 640;
 			camera_height = 480;
 		} 
-		else
+		else // init cam 2 and cam 3 using QVGA@100Hz
 		{
 			camera_fps = 100.0;
 			camera_width = 320;
@@ -97,7 +99,7 @@ bool startCameras()
 		// init cameras and adjust camera settings
 		bool success = VidCapCam[camIdx]->initialize(camera_width, camera_height, 3, camera_fps, camIdx);
 
-		if (!success)
+		if (!success) // break if initialization fails
 			return false;
 	}
 	for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
@@ -125,48 +127,49 @@ bool startCameras()
 
 int main(int argc, char** argv)
 {
-	
-	camera_width = 640;
-	camera_height = 480;
-
-
-	VideoWriter writer;
-	bool writeFrames = true;
-
-	if (writeFrames)
-		//writer.open("multicam.avi", VideoWriter::fourcc('M', 'J', 'P', 'G'), 30.0, cv::Size(NUM_CAMERAS * camera_width / 2, camera_height / 2), true);
-		writer.open("multicam.avi", VideoWriter::fourcc('M', 'J', 'P', 'G'), 30.0, cv::Size(3 * camera_width, camera_height), true);
-
-
-	//combined = Mat(camera_height, NUM_CAMERAS * camera_width, CV_8UC(3));
-	combined = Mat(camera_height, 3 * camera_width, CV_8UC(3));
-
-	//cv::Mat combined2 = Mat(camera_height / 2, NUM_CAMERAS * camera_width / 2, CV_8UC(3));
-
-	//for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
-	//	roi[camIdx] = combined(Rect(camIdx * camera_width, 0, camera_width, camera_height));
-
-	roi[0] = combined(Rect(0, 0, 640, 480));
-	roi[1] = combined(Rect(640, 0, 640, 480));
-	roi[2] = combined(Rect(2*640, 0, 320, 240));
-	roi[3] = combined(Rect(2*640+320, 0, 320, 240));
 
 	// start cameras
-	if (!startCameras()) {
+	if (!startCameras())
+	{
 		cout << "Exiting.";
 		return 0;
 	}
+	
+	// estimate size of combined frame for visualization and video writer
+	int maxHeight = 0;
+	int totalWidth = 0;
+	for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
+	{
+		if (VidCapCam[camIdx]->getCameraHeight() > maxHeight)
+			maxHeight = VidCapCam[camIdx]->getCameraHeight();
+		totalWidth += VidCapCam[camIdx]->getCameraWidth();
+	}
+	combined = Mat(maxHeight, totalWidth, CV_8UC(3));
+	
+	// open camera writer if required
+	VideoWriter writer;
+	if (writeFrames)
+		writer.open("multicam.avi", VideoWriter::fourcc('M', 'J', 'P', 'G'), 30.0, cv::Size(totalWidth, maxHeight), true);
+	
+	// region of interest per camera
+	int currentX = 0;
+	for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
+	{
+		roi[camIdx] = combined(Rect(currentX, 0, VidCapCam[camIdx]->getCameraWidth(), VidCapCam[camIdx]->getCameraHeight()));
+		currentX += VidCapCam[camIdx]->getCameraWidth();
+	}
+
+
 
 	// register mouse event callback for new window
 	//namedWindow("combined");
-
-
+	
 	clock_t startTime = clock(); //Start timer
 	double secondsPassed;
 	double secondsToDelay = 1.0;
 	long numFrames = 0;
-
-
+	
+	// main loop
 	
 	bool stop = false;
 	while (!stop)
@@ -185,11 +188,11 @@ int main(int argc, char** argv)
 
 			if (writeFrames)
 			{
+				// fill region of interests in combined frame
 				for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
 					current_frame[camIdx].copyTo(roi[camIdx]);
 				
-				
-				//cv::resize(combined, combined2, combined2.size());
+				// write frame using video writer
 				writer << combined;
 			}
 

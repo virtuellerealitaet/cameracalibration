@@ -727,7 +727,8 @@ public:
 		// Cancel any pending transfers
 		for (int index = 0; index < NUM_TRANSFERS; ++index)
 		{
-			libusb_cancel_transfer(xfr[index]);
+			if (xfr[index]->status == LIBUSB_TRANSFER_COMPLETED)
+				libusb_cancel_transfer(xfr[index]);
 		}
 
 		// Wait for cancelation to finish

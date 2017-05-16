@@ -55,7 +55,51 @@ bool CameraPS3Eye::initialize(
 	_deviceID = deviceID;
 
 
-	return true;
+	using namespace ps3eye;
+
+	// list out the devices
+	std::vector<PS3EYECam::PS3EYERef> devices(PS3EYECam::getDevices());
+	LOGCON("Found %d cameras.\n", (int)devices.size());
+	
+	bool initializationResult = false;
+
+	if (devices.size() > 0)
+	{
+		_cameraPtr = devices.at(_deviceID);
+		if (_numColorChannels == 3)
+			initializationResult = _cameraPtr->init(_resolution.x, _resolution.y, _framerate, ps3eye::PS3EYECam::EOutputFormat::BGR);
+		else
+			initializationResult = _cameraPtr->init(_resolution.x, _resolution.y, _framerate, ps3eye::PS3EYECam::EOutputFormat::Bayer);
+
+		if (initializationResult)
+		{
+
+			LOGCON("Initialization of PS3 Eye Cam successful !\n");
+
+			//startCapture();
+
+			_resolution.x = _cameraPtr->getWidth();
+			_resolution.y = _cameraPtr->getHeight();
+			_framerate = _cameraPtr->getFrameRate();
+			_numColorChannels = _cameraPtr->getOutputBytesPerPixel();
+
+			// allocate memory for output frame
+			//frame_bgr = new uint8_t[_resolution.x * _resolution.y * _numColorChannels];
+
+			if (_numColorChannels == 3)
+				_latestCamFrame = cv::Mat(_resolution.y, _resolution.x, CV_8UC3);
+			else
+				_latestCamFrame = cv::Mat(_resolution.y, _resolution.x, CV_8UC1);
+
+		}
+		else {
+			LOGERROR("Initialization of PS3 Eye Cam faild !!\n");
+			return false;
+		}
+	}
+
+
+	return initializationResult;
 
 }
 
@@ -106,49 +150,6 @@ void CameraPS3Eye::Run()
 	_fpsCount = 0;
 	_lastTime = time(0);
 
-	using namespace ps3eye;
-
-	// list out the devices
-	std::vector<PS3EYECam::PS3EYERef> devices(PS3EYECam::getDevices());
-	LOGCON("Found %d cameras.\n", (int)devices.size());
-
-
-
-	bool initializationResult = false;
-
-	if (devices.size() > 0)
-	{
-		_cameraPtr = devices.at(_deviceID);
-		if (_numColorChannels == 3)
-			initializationResult = _cameraPtr->init(_resolution.x, _resolution.y, _framerate, ps3eye::PS3EYECam::EOutputFormat::BGR);
-		else
-			initializationResult = _cameraPtr->init(_resolution.x, _resolution.y, _framerate, ps3eye::PS3EYECam::EOutputFormat::Bayer);
-
-		if (initializationResult)
-		{
-
-			LOGCON("Initialization of PS3 Eye Cam successful !\n");
-
-			//startCapture();
-
-			_resolution.x = _cameraPtr->getWidth();
-			_resolution.y = _cameraPtr->getHeight();
-			_framerate = _cameraPtr->getFrameRate();
-			_numColorChannels = _cameraPtr->getOutputBytesPerPixel();
-
-			// allocate memory for output frame
-			//frame_bgr = new uint8_t[_resolution.x * _resolution.y * _numColorChannels];
-
-			if (_numColorChannels == 3)
-				_latestCamFrame = cv::Mat(_resolution.y, _resolution.x, CV_8UC3);
-			else
-				_latestCamFrame = cv::Mat(_resolution.y, _resolution.x, CV_8UC1);
-
-		}
-		else {
-			LOGERROR("Initialization of PS3 Eye Cam faild !!\n");
-		}
-	}
 
 	_cameraPtr->start();
 
@@ -210,7 +211,7 @@ void CameraPS3Eye::Run()
 
 	}
 
-	_cameraPtr->stop(); // throwing error in debug
+	//_cameraPtr->stop(); // throwing error in debug
 
 }
 
