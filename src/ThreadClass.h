@@ -3,6 +3,10 @@
 #include <thread>
 #include <chrono>
 
+#include "Camera.h"
+#include "ps3eye.h"
+
+
 class MyClass
 {
 
@@ -50,9 +54,9 @@ class ThreadCamera : public Camera
 public:
 	/* Explicitly using the default constructor to
 	* underline the fact that it does get called */
-	ThreadCamera(int deviceIndex) : the_thread()
+	ThreadCamera() : the_thread()
 	{
-		_deviceID = deviceIndex;
+
 	}
 	~ThreadCamera() {
 		stop_thread = true;
@@ -63,17 +67,44 @@ public:
 
 	bool initialize()
 	{
-
-		_resolution.x = 320;
-		_resolution.y = 240;
-		_framerate = 125;
+		// default values
+		_deviceID = 0;
+		_resolution.x = 640;
+		_resolution.y = 480;
+		_framerate = 60;
 		_numColorChannels = 3;
-		//_deviceID = 0;
-
+		_deviceID = 0;
 
 		return true;
 	};
+
+	bool initialize(
+		unsigned int deviceID,
+		unsigned int camResolutionWidth,
+		unsigned int camResolutionHeight,
+		unsigned int numColorChannels,
+		unsigned int framerate)
+	{
+
+		_deviceID = deviceID;
+		_resolution.x = camResolutionWidth;
+		_resolution.y = camResolutionHeight;
+		_framerate = framerate;
+		_numColorChannels = numColorChannels;
+		_deviceID = deviceID;
+
+		return true;
+	}
+
 	void deinitialize() {  };
+
+	/*
+	Apply callback function that will be called on the capturing thread for every frame.
+	*/
+	void setCallback(void(*callbackFunction)(cv::Mat frame, void *userdata), void *userData) {
+		processFrame = callbackFunction;
+		userdata = userData;
+	}
 
 	bool startCapture()
 	{
@@ -102,6 +133,12 @@ public:
 
 private:
 	std::thread the_thread;
+
+	/*
+	Callback function to process each captured frame.
+	*/
+	void(*processFrame)(cv::Mat frame, void *userdata) = NULL;
+	void *userdata;
 
 	bool stop_thread = false; // Super simple thread stopping.
 
@@ -193,7 +230,36 @@ private:
 
 			_cameraPtr->getFrame(frame_bgr);
 
+			
+			// if callback function is set, return image to the function
+			if (processFrame)
+			{
+
+				// copy camera frame to OpenCV image
+				//cv::Mat frame;
+				//frame = cv::Mat(_resolution.y, _resolution.x, CV_8UC3);
+
+				unsigned char *input = (unsigned char*)(_latestCamFrame.data);
+				memcpy(input, frame_bgr, sizeof(uint8_t) * _resolution.x * _resolution.y * _numColorChannels);
+
+				if (_flipHorizontally && _flipVertically)
+					cv::flip(_latestCamFrame, _latestCamFrame, -1);
+				else if (_flipHorizontally)
+					cv::flip(_latestCamFrame, _latestCamFrame, 0);
+				else if (_flipVertically)
+					cv::flip(_latestCamFrame, _latestCamFrame, 1);
+
+
+				processFrame(_latestCamFrame, userdata);
+
+			}
+
+
+
 			updateFrameCounter();
+
+			
+
 		}
 
 		_cameraPtr->stop();
