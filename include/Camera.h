@@ -40,13 +40,10 @@ public:
 
 	virtual bool initialize() = 0;
 	virtual void deinitialize() = 0;
-	
-	
+		
 	void pauseCapture() { _isPaused = true; };
 	void unpauseCapture() { _isPaused = false; };
-	
-	
-	
+		
 	virtual bool startCapture() = 0;
 	virtual bool stopCapture() = 0;
 

@@ -11,12 +11,12 @@
 // *******************************************************************
 
 #include <stdafx.h>
-
 #include <iostream>
 #include <ctime>
 #include <cstdlib>
 
 #include "CameraPS3Eye.h"
+#include "ThreadClass.h"
 
 using namespace cv;
 using namespace std;
@@ -28,9 +28,11 @@ SHORT WINAPI GetAsyncKeyState(
 // ***************************************************
 // CAMERA DATA
 
-const int NUM_CAMERAS = 1;
+const int NUM_CAMERAS = 3;
 
-static CameraPS3Eye *VidCapCam[NUM_CAMERAS];
+//static CameraPS3Eye *VidCapCam[NUM_CAMERAS];
+static ThreadCamera *VidCapCam[NUM_CAMERAS];
+
 static bool newframe[NUM_CAMERAS];
 static cv::Mat current_frame[NUM_CAMERAS];
 
@@ -57,7 +59,6 @@ static void cameracallback(cv::Mat frame, void *userdata)
 	newframe[camIndex] = true;
 }
 
-
 bool startCameras()
 {
 
@@ -76,9 +77,10 @@ bool startCameras()
 	// create and initialize two sony ps3 eye cameras
 	for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
 	{
-		VidCapCam[camIdx] = new CameraPS3Eye(camIdx);
-		VidCapCam[camIdx]->setCallback(cameracallback, (void*)camIdx);
+		//VidCapCam[camIdx] = new CameraPS3Eye(camIdx);
+		//VidCapCam[camIdx]->setCallback(cameracallback, (void*)camIdx);
 
+		VidCapCam[camIdx] = new ThreadCamera(camIdx);
 		
 		// init cam 0 and cam 1 using VGA@30Hz
 		if (camIdx < 2)
@@ -97,7 +99,8 @@ bool startCameras()
 
 
 		// init cameras and adjust camera settings
-		bool success = VidCapCam[camIdx]->initialize(camera_width, camera_height, 3, camera_fps, camIdx);
+		//bool success = VidCapCam[camIdx]->initialize(camera_width, camera_height, 3, camera_fps, camIdx);
+		bool success = VidCapCam[camIdx]->initialize();
 
 		if (!success) // break if initialization fails
 			return false;
@@ -127,6 +130,10 @@ bool startCameras()
 
 int main(int argc, char** argv)
 {
+
+	//MyClass instance;
+	//instance.Start();
+	
 
 	// start cameras
 	if (!startCameras())
@@ -185,13 +192,13 @@ int main(int argc, char** argv)
 
 		if (allFramesNew)
 		{
-
+			
 			if (writeFrames)
 			{
 				// fill region of interests in combined frame
 				for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
 					current_frame[camIdx].copyTo(roi[camIdx]);
-				
+
 				// write frame using video writer
 				writer << combined;
 			}
@@ -199,6 +206,8 @@ int main(int argc, char** argv)
 			// reset camera frame status
 			for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
 				newframe[camIdx] = false;
+
+			
 
 			//numFrames++;
 			//imshow("combined", combined);
@@ -214,11 +223,13 @@ int main(int argc, char** argv)
 			//	startTime = clock();
 			//}
 
-			// stop capture after pressing space bar
-			if (GetAsyncKeyState(VK_SPACE))
-				stop = true;
-
 		}
+
+		std::this_thread::sleep_for(std::chrono::seconds(1));
+
+		// stop capture after pressing space bar
+		if (GetAsyncKeyState(VK_SPACE))
+			stop = true;
 		
 
 	}
@@ -233,6 +244,8 @@ int main(int argc, char** argv)
 	// deinitialize cameras	
 	for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
 		VidCapCam[camIdx]->stopCapture();
+
+	//instance.Stop();
 
 
 	return 0;
