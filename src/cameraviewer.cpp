@@ -172,16 +172,6 @@ int main(int argc, char** argv)
 	bool stop = false;
 	while (!stop)
 	{
-
-	# if 1
-
-		//bool allFramesNew = true;
-
-		//for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
-		//	if (!newframe[camIdx])
-		//		allFramesNew = false;
-
-		//if (allFramesNew)
 		{
 			
 			if (writeFrames)
@@ -216,12 +206,6 @@ int main(int argc, char** argv)
 				// fill region of interests in combined frame
 				for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
 					current_frame[camIdx].copyTo(roi[camIdx]);
-				
-				//current_frame[2].copyTo(roi[0]);
-
-				// reset camera frame status
-				//for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
-				//	newframe[camIdx] = false;
 
 				imshow("combined", combined);
 				waitKey(1);
@@ -229,11 +213,7 @@ int main(int argc, char** argv)
 				//std::this_thread::sleep_for(std::chrono::seconds(1));
 
 			}
-
-
-
 		}
-#endif
 
 		//std::this_thread::sleep_for(std::chrono::seconds(1));
 		//std::this_thread::sleep_for(std::chrono::milliseconds(10));
