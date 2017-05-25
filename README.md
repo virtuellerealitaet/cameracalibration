@@ -37,6 +37,22 @@ run calibration using the following parameters
 singlecamcalibration.exe files.xml -w 9 -h 6 -pt chessboard -o gopro3 -oe
 ```
 
+## Option : Manual Calibration Optimization
+
+The automatic calibration pattern reconstruction is not perfect for difficult lighting situations. I therefore added a guided calibration routine which can be compiled by deactivating the define CALIBRATION_DEFAULT and activating the define CALIBRATION_GUIDED.
+
+Then run the program as normal using a camera or a file list. You can adjust the pattern detection now by the provided GUI. If you are happy with the quality of the respective camera angle and detection quality press the 'C' to proceed with the next image. If you want to skip an image use the 'S' key.
+
+Short summary for manual calibration mode
+
+use #define CALIBRATION_GUIDED when compiling the program
+run the program as normal
+use GUI to adjust pattern recognition quality
+press C key to process the current frame (proceed in file list mode)
+press S key to skip an image (only for file list mode)
+use parameter -su to show calibration result (file list mode)
+use U key to show undisortion result (camera mode)
+
 Example image list (files.xml) :
 
 ```
