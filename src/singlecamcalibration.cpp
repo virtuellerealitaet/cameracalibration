@@ -30,10 +30,12 @@
 * POSSIBILITY OF SUCH DAMAGE.
 **/
 
+
+//#define CALIBRATION_DEFAULT
+
 #ifdef CALIBRATION_DEFAULT
 
 #include <stdafx.h>
-//#include "CameraPS3Eye.h"
 #include "ThreadClass.h"
 
 using namespace cv;

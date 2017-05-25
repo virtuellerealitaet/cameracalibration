@@ -35,7 +35,6 @@
 #ifdef CALIBRATION_GUIDED
 
 #include <stdafx.h>
-//#include "CameraPS3Eye.h"
 #include "ThreadClass.h"
 
 #include "circlesgrid.hpp"

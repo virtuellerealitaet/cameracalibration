@@ -12,7 +12,7 @@
 
 #include <stdafx.h>
 
-#include "CameraPS3Eye.h"
+#include "ThreadClass.h"
 
 using namespace cv;
 using namespace std;
@@ -24,8 +24,8 @@ SHORT WINAPI GetAsyncKeyState(
 // ***************************************************
 // CAMERA DATA
 
-static CameraPS3Eye *VidCapLeft;
-static CameraPS3Eye *VidCapRight;
+static ThreadCamera *VidCapLeft;
+static ThreadCamera *VidCapRight;
 
 static bool newframe_left = false;
 static bool newframe_right = false;
@@ -84,22 +84,35 @@ bool startCameras()
 	}
 
 	// create and initialize two sony ps3 eye cameras
-	VidCapLeft = new CameraPS3Eye();
-	VidCapRight = new CameraPS3Eye();
-	bool success = (VidCapLeft->initialize(640,480,3,60,0) && VidCapRight->initialize(640, 480, 3, 60, 1));
+	VidCapLeft = new ThreadCamera();
+	VidCapRight = new ThreadCamera();
+	bool success = (VidCapLeft->initialize(0,640,480,3,60) && VidCapRight->initialize(1,640, 480, 3, 60));
 
 	// adjust camera settings
 	if (success)
 	{
+
+		VidCapLeft->startCapture();
+
+		Sleep(500);
+
 		VidCapLeft->_autogain = true;
 		VidCapLeft->_autowhitebalance = true;
 		VidCapLeft->_flipVertically = true;
 		VidCapLeft->updateCameraSettings();
 
+		Sleep(500);
+
+		VidCapRight->startCapture();
+
+		Sleep(500);
+
 		VidCapRight->_autogain = true;
 		VidCapRight->_autowhitebalance = true;
 		VidCapRight->_flipHorizontally = true;
 		VidCapRight->updateCameraSettings();
+
+		Sleep(500);
 	}
 
 	return success;
@@ -559,6 +572,8 @@ int main(int argc, char** argv)
 
 		Sleep(5);
 	}
+
+
 
 	// deinitialize both cameras	
 	VidCapLeft->deinitialize();

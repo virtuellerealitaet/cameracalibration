@@ -97,8 +97,7 @@ public:
 
 	void deinitialize() {
 	
-		stop_thread = true;
-		if (the_thread.joinable()) the_thread.join();
+		stopCapture();
 
 		_isInitialized = false;
 	

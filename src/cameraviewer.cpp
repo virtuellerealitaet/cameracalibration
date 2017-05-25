@@ -30,7 +30,6 @@ SHORT WINAPI GetAsyncKeyState(
 
 const int NUM_CAMERAS = 3;
 
-//static CameraPS3Eye *VidCapCam[NUM_CAMERAS];
 static ThreadCamera *VidCapCam[NUM_CAMERAS];
 
 static bool newframe[NUM_CAMERAS];
