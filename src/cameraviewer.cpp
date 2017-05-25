@@ -15,8 +15,7 @@
 #include <ctime>
 #include <cstdlib>
 
-//#include "CameraPS3Eye.h"
-#include "ThreadClass.h"
+#include "ThreadCamera.h"
 
 using namespace cv;
 using namespace std;
@@ -214,8 +213,6 @@ int main(int argc, char** argv)
 			}
 		}
 
-		//std::this_thread::sleep_for(std::chrono::seconds(1));
-		//std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
 		// stop capture after pressing space bar
 		if (GetAsyncKeyState(VK_SPACE))

@@ -36,7 +36,7 @@
 #ifdef CALIBRATION_DEFAULT
 
 #include <stdafx.h>
-#include "ThreadClass.h"
+#include "ThreadCamera.h"
 
 using namespace cv;
 using namespace std;
@@ -508,7 +508,7 @@ int main( int argc, char** argv )
 		if (useEyeCam)
 		{
 			Mat view0;
-			view0 = pseye->receiveFrame();
+			pseye->receiveFrameCopy(view0);
 			view0.copyTo(view);
 			
 		}

@@ -12,7 +12,7 @@
 
 #include <stdafx.h>
 
-#include "ThreadClass.h"
+#include "ThreadCamera.h"
 
 using namespace cv;
 using namespace std;

@@ -35,8 +35,7 @@
 #ifdef CALIBRATION_GUIDED
 
 #include <stdafx.h>
-#include "ThreadClass.h"
-
+#include "ThreadCamera.h"
 #include "circlesgrid.hpp"
 
 using namespace cv;
