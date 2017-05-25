@@ -38,6 +38,8 @@
 //#include "CameraPS3Eye.h"
 #include "ThreadClass.h"
 
+#include "circlesgrid.hpp"
+
 using namespace cv;
 using namespace std;
 
@@ -83,8 +85,6 @@ static void help()
         "     [-n <number_of_frames>]  # the number of frames to use for calibration\n"
         "                              # (if not specified, it will be set to the number\n"
         "                              #  of board views actually available)\n"
-        "     [-d <delay>]             # a minimum delay in ms between subsequent attempts to capture a next view\n"
-        "                              # (used only for video capturing)\n"
         "     [-s <squareSize>]       # square size in some user-defined units (1 by default)\n"
         "     [-o <out_camera_params>] # the output filename for intrinsic [and extrinsic] parameters\n"
         "     [-op]                    # write detected feature points\n"
@@ -450,22 +450,98 @@ static void minInertiaRatioTrackbar(int value, void* userparams)
 	updateBlobDetectorParams();
 }
 
-static bool customFindAsymmCirclesGrid(cv::InputArray mat, cv::Size patternSize, vector<Point2f> &centers, const Ptr<FeatureDetector> &featureDetect)
+static bool customFindAsymmCirclesGrid(cv::InputOutputArray mat, cv::Size patternSize, vector<Point2f> &_centers, const Ptr<FeatureDetector> &featureDetect)
 {
 	std::vector<KeyPoint> keypoints;
 	featureDetect.get()->detect(mat, keypoints);
-		
+	
+	drawKeypoints(mat, keypoints, mat, Scalar(0, 0, 255), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+
+
+	std::vector<Point2f> centers;
 	centers.clear();
+
+	std::vector<Point2f> points;
 
 	for (size_t i = 0; i < keypoints.size(); i++)
 	{
-		centers.push_back(keypoints[i].pt);
+		points.push_back(keypoints[i].pt);
 	}
 
-	if (keypoints.size() == patternSize.height * patternSize.width)
-		return true;
 	
+	CirclesGridFinderParameters parameters;
+	parameters.vertexPenalty = -0.6f;
+	parameters.vertexGain = 1;
+	parameters.existingVertexGain = 10000;
+	parameters.edgeGain = 1;
+	parameters.edgePenalty = -0.6f;
+
+	parameters.gridType = CirclesGridFinderParameters::ASYMMETRIC_GRID;
+	
+
+	const int attempts = 2;
+	const size_t minHomographyPoints = 4;
+	Mat H;
+	for (int i = 0; i < attempts; i++)
+	{
+		centers.clear();
+
+		CirclesGridFinder boxFinder(patternSize, points, parameters);
+		bool isFound = false;
+
+		
+
+		try
+		{
+			isFound = boxFinder.findHoles();
+		}
+		catch (const cv::Exception &)
+		{
+		}
+
+		//isFound = true;
+
+		if (isFound)
+		{
+			boxFinder.getAsymmetricHoles(centers);
+
+			if (i != 0)
+			{
+				Mat orgPointsMat;
+				transform(centers, orgPointsMat, H.inv());
+				convertPointsFromHomogeneous(orgPointsMat, centers);
+			}
+			Mat(centers).copyTo(_centers);
+			return true;
+		}
+
+
+		boxFinder.getHoles(centers);
+		if (i != attempts - 1)
+		{
+			if (centers.size() < minHomographyPoints)
+				break;
+			H = CirclesGridFinder::rectifyGrid(boxFinder.getDetectedGridSize(), centers, points, points);
+		}
+
+	}
+
+	//featureDetect.get()->detect(mat, keypoints);
+	//points.clear();
+	//for (size_t i = 0; i < keypoints.size(); i++)
+	//{
+	//	points.push_back(keypoints[i].pt);
+	//}
+
+	_centers = points;
+
+	//Mat(centers).copyTo(_centers);
 	return false;
+
+	//if (keypoints.size() == patternSize.height * patternSize.width)
+	//	return true;
+	//
+	//return false;
 
 }
 
@@ -679,6 +755,9 @@ int main( int argc, char** argv )
 
 	for (i = 0;; i++)
 	{
+
+		int key = 0xff & waitKey(captureIsOpen ? 50 : 500);
+
 		Mat view, viewGray;
 		bool blink = false;
 
@@ -747,16 +826,17 @@ int main( int argc, char** argv )
 			cornerSubPix(viewGray, pointbuf, Size(11, 11),
 				Size(-1, -1), TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
 
-		if (mode == CAPTURING && found &&
-			(!captureIsOpen || clock() - prevTimestamp > delay*1e-3*CLOCKS_PER_SEC))
+		//if (mode == CAPTURING && found &&
+		//	(!captureIsOpen || clock() - prevTimestamp > delay*1e-3*CLOCKS_PER_SEC))
+		if (captureIsOpen && key == 'c')
 		{
 			imagePoints.push_back(pointbuf);
 			prevTimestamp = clock();
 			blink = captureIsOpen;
 		}
 
-		//if (pattern == ASYMMETRIC_CIRCLES_GRID)
-		//	customDrawChessboardCorners(view, boardSize, pointbuf, found);
+		if (pattern == ASYMMETRIC_CIRCLES_GRID)
+			customDrawChessboardCorners(view, boardSize, pointbuf, found);
 		//else
 		{
 			if (found)
@@ -829,7 +909,7 @@ int main( int argc, char** argv )
 
 		
 
-        int key = 0xff & waitKey(captureIsOpen ? 50 : 500);
+        
 
         if( (key & 255) == 27 )
             break;
