@@ -2,6 +2,7 @@
 
 #include <thread>
 #include <chrono>
+#include <mutex>
 
 #include "Camera.h"
 #include "ps3eye.h"
@@ -126,9 +127,15 @@ public:
 		return true;
 	};
 
-	cv::Mat receiveFrame()
+	// copy latest frame thread-safe
+	void receiveFrameCopy(cv::Mat &frame)
 	{
-		return _latestCamFrame;
+		
+		g_pages_mutex.lock();
+
+		_latestCamFrame.copyTo(frame);
+
+		g_pages_mutex.unlock();
 	};
 
 	unsigned int getCameraWidth() { return _resolution.x; };
@@ -138,6 +145,8 @@ public:
 
 private:
 	std::thread the_thread;
+
+	std::mutex g_pages_mutex;
 
 	/*
 	Callback function to process each captured frame.
@@ -230,36 +239,30 @@ private:
 		
 		while (!stop_thread)
 		{
-			//std::cout << "thread iteration" << std::endl;
-			
-			// Do something useful, e.g:
-			//std::this_thread::sleep_for(std::chrono::seconds(1));
 
 			_cameraPtr->getFrame(frame_bgr);
 
-
-			// copy camera frame to OpenCV image
-			//cv::Mat frame;
-			//frame = cv::Mat(_resolution.y, _resolution.x, CV_8UC3);
-
-			unsigned char *input = (unsigned char*)(_latestCamFrame.data);
-			memcpy(input, frame_bgr, sizeof(uint8_t) * _resolution.x * _resolution.y * _numColorChannels);
-
-			if (_flipHorizontally && _flipVertically)
-				cv::flip(_latestCamFrame, _latestCamFrame, -1);
-			else if (_flipHorizontally)
-				cv::flip(_latestCamFrame, _latestCamFrame, 0);
-			else if (_flipVertically)
-				cv::flip(_latestCamFrame, _latestCamFrame, 1);
-			
-			// if callback function is set, return image to the function
-			if (processFrame)
+			g_pages_mutex.lock();
 			{
 
-				processFrame(_latestCamFrame, userdata);
+				unsigned char *input = (unsigned char*)(_latestCamFrame.data);
+				memcpy(input, frame_bgr, sizeof(uint8_t) * _resolution.x * _resolution.y * _numColorChannels);
+
+				if (_flipHorizontally && _flipVertically)
+					cv::flip(_latestCamFrame, _latestCamFrame, -1);
+				else if (_flipHorizontally)
+					cv::flip(_latestCamFrame, _latestCamFrame, 0);
+				else if (_flipVertically)
+					cv::flip(_latestCamFrame, _latestCamFrame, 1);
+			
+				// if callback function is set, return image to the function
+				if (processFrame)
+				{
+					processFrame(_latestCamFrame, userdata);
+				}
 
 			}
-
+			g_pages_mutex.unlock();
 
 
 			updateFrameCounter();

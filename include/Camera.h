@@ -47,7 +47,7 @@ public:
 	virtual bool startCapture() = 0;
 	virtual bool stopCapture() = 0;
 
-	virtual cv::Mat receiveFrame() = 0;
+	virtual void receiveFrameCopy(cv::Mat &frame) = 0;
 
 	virtual unsigned int getCameraWidth() = 0;
 	virtual unsigned int getCameraHeight() = 0;

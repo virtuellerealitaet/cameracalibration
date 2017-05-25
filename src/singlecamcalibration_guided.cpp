@@ -763,7 +763,7 @@ int main( int argc, char** argv )
 		if (useEyeCam)
 		{
 			Mat view0;
-			view0 = pseye->receiveFrame();
+			pseye->receiveFrameCopy(view0);
 			view0.copyTo(view);
 
 		}

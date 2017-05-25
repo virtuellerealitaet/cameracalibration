@@ -122,9 +122,9 @@ bool startCameras()
 void receiveCameraFrames()
 {
 
-	current_frame_left = VidCapLeft->receiveFrame();
-	current_frame_right = VidCapRight->receiveFrame();
-
+	VidCapLeft->receiveFrameCopy(current_frame_left);
+	VidCapRight->receiveFrameCopy(current_frame_right);
+	
 	transpose(current_frame_left, current_frame_left);
 	transpose(current_frame_right, current_frame_right);
 
