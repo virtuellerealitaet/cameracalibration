@@ -59,8 +59,7 @@ public:
 
 	}
 	~ThreadCamera() {
-		stop_thread = true;
-		if (the_thread.joinable()) the_thread.join();
+		deinitialize();
 	}
 
 	// implement camera interface
@@ -96,7 +95,14 @@ public:
 		return true;
 	}
 
-	void deinitialize() {  };
+	void deinitialize() {
+	
+		stop_thread = true;
+		if (the_thread.joinable()) the_thread.join();
+
+		_isInitialized = false;
+	
+	};
 
 	/*
 	Apply callback function that will be called on the capturing thread for every frame.
@@ -188,7 +194,9 @@ private:
 
 		frame_bgr = new uint8_t[_resolution.x * _resolution.y * _numColorChannels];
 
-		return _cameraPtr->isInitialized();
+		_isInitialized = _cameraPtr->isInitialized();
+
+		return _isInitialized;
 
 	}
 
@@ -230,25 +238,24 @@ private:
 
 			_cameraPtr->getFrame(frame_bgr);
 
+
+			// copy camera frame to OpenCV image
+			//cv::Mat frame;
+			//frame = cv::Mat(_resolution.y, _resolution.x, CV_8UC3);
+
+			unsigned char *input = (unsigned char*)(_latestCamFrame.data);
+			memcpy(input, frame_bgr, sizeof(uint8_t) * _resolution.x * _resolution.y * _numColorChannels);
+
+			if (_flipHorizontally && _flipVertically)
+				cv::flip(_latestCamFrame, _latestCamFrame, -1);
+			else if (_flipHorizontally)
+				cv::flip(_latestCamFrame, _latestCamFrame, 0);
+			else if (_flipVertically)
+				cv::flip(_latestCamFrame, _latestCamFrame, 1);
 			
 			// if callback function is set, return image to the function
 			if (processFrame)
 			{
-
-				// copy camera frame to OpenCV image
-				//cv::Mat frame;
-				//frame = cv::Mat(_resolution.y, _resolution.x, CV_8UC3);
-
-				unsigned char *input = (unsigned char*)(_latestCamFrame.data);
-				memcpy(input, frame_bgr, sizeof(uint8_t) * _resolution.x * _resolution.y * _numColorChannels);
-
-				if (_flipHorizontally && _flipVertically)
-					cv::flip(_latestCamFrame, _latestCamFrame, -1);
-				else if (_flipHorizontally)
-					cv::flip(_latestCamFrame, _latestCamFrame, 0);
-				else if (_flipVertically)
-					cv::flip(_latestCamFrame, _latestCamFrame, 1);
-
 
 				processFrame(_latestCamFrame, userdata);
 
@@ -257,8 +264,6 @@ private:
 
 
 			updateFrameCounter();
-
-			
 
 		}
 
@@ -280,6 +285,8 @@ private:
 	int _currentfps, _fpsCount = 0;
 	time_t _lastTime = time(0);
 
+	bool			_isInitialized = false;
+
 public:
 
 	int				_exposure = 50;
@@ -294,7 +301,12 @@ public:
 	bool			_flipHorizontally = false;
 	bool			_flipVertically = false;
 
+	
+
 	void ThreadCamera::updateCameraSettings() {
+
+		if (!_isInitialized)
+			return;
 
 		uint8_t exposure = _cameraPtr->getExposure();
 		uint8_t gain = _cameraPtr->getGain();

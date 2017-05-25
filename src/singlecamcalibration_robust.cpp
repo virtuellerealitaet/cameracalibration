@@ -30,7 +30,9 @@
 * POSSIBILITY OF SUCH DAMAGE.
 **/
 
-#ifdef CALIBRATION_DEFAULT
+#define CALIBRATION_ROBUST
+
+#ifdef CALIBRATION_ROBUST
 
 #include <stdafx.h>
 //#include "CameraPS3Eye.h"
@@ -106,6 +108,9 @@ static void help()
 
 enum { DETECTION = 0, CAPTURING = 1, CALIBRATED = 2 };
 enum Pattern { CHESSBOARD, CIRCLES_GRID, ASYMMETRIC_CIRCLES_GRID };
+
+Ptr<SimpleBlobDetector> blobDetector;
+SimpleBlobDetector::Params blobParams;
 
 static double computeReprojectionErrors(
         const vector<vector<Point3f> >& objectPoints,
@@ -319,6 +324,175 @@ static bool runAndSave(const string& outputFilename,
 }
 
 
+int minThresholdValue = 70;
+int maxThresholdValue = 175;
+int filterByArea = true;
+int minArea = 176;
+int filterByCircularity = 0;
+int minCircularity = 10;
+int filterByConvexity = 0;
+int minConvexity = 87;
+int filterByInertia = 0;
+int minInertiaRatio = 1;
+
+int method = 0;
+
+static void initBlobDetectorParams()
+{
+
+	// Change thresholds
+	blobParams.minThreshold = 70;
+	blobParams.maxThreshold = 175;
+
+	// Filter by Area.
+	blobParams.filterByArea = true;
+	blobParams.minArea = 176;
+
+	// Filter by Circularity
+	blobParams.filterByCircularity = false;
+	blobParams.minCircularity = 0.1;
+
+	// Filter by Convexity
+	blobParams.filterByConvexity = false;
+	blobParams.minConvexity = 0.87;
+
+	// Filter by Inertia
+	blobParams.filterByInertia = false;
+	blobParams.minInertiaRatio = 0.01;
+
+}
+
+
+
+static void updateBlobDetectorParams()
+{
+	blobDetector = SimpleBlobDetector::create(blobParams);
+}
+
+
+static void minThresholdTrackbar(int value, void* userparams)
+{
+	minThresholdValue = value;
+	blobParams.minThreshold = float(minThresholdValue);
+	cout << "min threshold " << blobParams.minThreshold << endl;
+	updateBlobDetectorParams();
+}
+
+static void maxThresholdTrackbar(int value, void* userparams)
+{
+	maxThresholdValue = value;
+	blobParams.maxThreshold = float(maxThresholdValue);
+	cout << "max threshold " << blobParams.maxThreshold << endl;
+	updateBlobDetectorParams();
+}
+
+static void filterByAreaTrackbar(int value, void* userparams)
+{
+	filterByArea = value;
+	blobParams.filterByArea = bool(filterByArea);
+	cout << "filterByArea " << blobParams.filterByArea << endl;
+	updateBlobDetectorParams();
+}
+
+static void minAreaTrackbar(int value, void* userparams)
+{
+	minArea = value;
+	blobParams.minArea = float(minArea);
+	cout << "minArea " << blobParams.minArea << endl;
+	updateBlobDetectorParams();
+}
+
+static void filterByCircularityTrackbar(int value, void* userparams)
+{
+	filterByCircularity = value;
+	blobParams.filterByCircularity = bool(filterByCircularity);
+	cout << "filterByCircularity " << blobParams.filterByCircularity << endl;
+	updateBlobDetectorParams();
+}
+
+static void minCircularityTrackbar(int value, void* userparams)
+{
+	minCircularity = value;
+	blobParams.minCircularity = float(minCircularity) / 100;
+	cout << "minCircularity " << blobParams.minCircularity << endl;
+	updateBlobDetectorParams();
+}
+
+static void filterByConvexityTrackbar(int value, void* userparams)
+{
+	filterByConvexity = value;
+	blobParams.filterByConvexity = bool(filterByConvexity);
+	cout << "filterByConvexity " << blobParams.filterByConvexity << endl;
+	updateBlobDetectorParams();
+}
+
+static void minConvexityTrackbar(int value, void* userparams)
+{
+	minConvexity = value;
+	blobParams.minConvexity = float(minConvexity) / 100;
+	cout << "minConvexity " << blobParams.minConvexity << endl;
+	updateBlobDetectorParams();
+}
+
+static void filterByInertiaTrackbar(int value, void* userparams)
+{
+	filterByInertia = value;
+	blobParams.filterByInertia = bool(filterByInertia);
+	cout << "filterByInertia " << blobParams.filterByInertia << endl;
+	updateBlobDetectorParams();
+}
+
+static void minInertiaRatioTrackbar(int value, void* userparams)
+{
+	minInertiaRatio = value;
+	blobParams.minInertiaRatio = float(minInertiaRatio) / 100;
+	cout << "minInertiaRatio " << blobParams.minInertiaRatio << endl;
+	updateBlobDetectorParams();
+}
+
+static bool customFindAsymmCirclesGrid(cv::InputArray mat, cv::Size patternSize, vector<Point2f> &centers, const Ptr<FeatureDetector> &featureDetect)
+{
+	std::vector<KeyPoint> keypoints;
+	featureDetect.get()->detect(mat, keypoints);
+		
+	centers.clear();
+
+	for (size_t i = 0; i < keypoints.size(); i++)
+	{
+		centers.push_back(keypoints[i].pt);
+	}
+
+	if (keypoints.size() == patternSize.height * patternSize.width)
+		return true;
+	
+	return false;
+
+}
+
+static bool customDrawChessboardCorners(cv::Mat &mat, cv::Size patternSize, vector<Point2f> keypoints, bool patternWasFound)
+{
+
+	// draw found points
+	for (auto p : keypoints)
+		cv::circle(mat, p, 5, cv::Scalar(0, 255, 0), 2);
+
+	int numKeyPoints = keypoints.size();
+
+	std::vector<KeyPoint> _keypoints;
+	for (int i = 0; i < numKeyPoints; i++)
+	{
+		KeyPoint k;
+		k.pt = keypoints[i];
+		_keypoints.push_back(k);
+	}
+
+	drawKeypoints(mat, _keypoints, mat, Scalar(0, 0, 255), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+
+	return true;
+}
+
+
+
 int main( int argc, char** argv )
 {
     Size boardSize, imageSize;
@@ -348,6 +522,10 @@ int main( int argc, char** argv )
     Pattern pattern = CHESSBOARD;
 
 	bool useEyeCam = false;
+
+	// blob detector	
+	initBlobDetectorParams();
+	updateBlobDetectorParams();
 
     if( argc < 2 )
     {
@@ -467,7 +645,8 @@ int main( int argc, char** argv )
     
 	if (useEyeCam)
 	{
-		if (!pseye->initialize(0,320,240,3,60))
+		//if (!pseye->initialize(0,320,240,3,60))
+		if (!pseye->initialize())
 			return fprintf(stderr, "Could not initialize Sony Eye Cam ! \n"), -2;
 		else
 		{
@@ -498,76 +677,93 @@ int main( int argc, char** argv )
 
     namedWindow( "Image View", 1 );
 
-    for(i = 0;;i++)
-    {
-        Mat view, viewGray;
-        bool blink = false;
+	for (i = 0;; i++)
+	{
+		Mat view, viewGray;
+		bool blink = false;
 
 		if (useEyeCam)
 		{
 			Mat view0;
 			view0 = pseye->receiveFrame();
 			view0.copyTo(view);
-			
+
 		}
-		else if( capture.isOpened() )
-        {
-            Mat view0;
-            capture >> view0;
-            view0.copyTo(view);
-        }
-        else if( i < (int)imageList.size() )
-            view = imread(imageList[i], 1);
+		else if (capture.isOpened())
+		{
+			Mat view0;
+			capture >> view0;
+			view0.copyTo(view);
+		}
+		else if (i < (int)imageList.size())
+			view = imread(imageList[i], 1);
 
-        if(!view.data)
-        {
-            if( imagePoints.size() > 0 )
-                runAndSave(outputFilename, imagePoints, imageSize,
-                           boardSize, pattern, squareSize, aspectRatio,
-                           flags, cameraMatrix, distCoeffs,
-                           writeExtrinsics, writePoints);
-            break;
-        }
+		if (!view.data)
+		{
+			if (imagePoints.size() > 0)
+				runAndSave(outputFilename, imagePoints, imageSize,
+					boardSize, pattern, squareSize, aspectRatio,
+					flags, cameraMatrix, distCoeffs,
+					writeExtrinsics, writePoints);
+			break;
+		}
 
-        imageSize = view.size();
+		imageSize = view.size();
 
-        if( flipVertical )
-            flip( view, view, 0 );
+		if (flipVertical)
+			flip(view, view, 0);
 
-        vector<Point2f> pointbuf;
-        cvtColor(view, viewGray, CV_BGR2GRAY);
+		vector<Point2f> pointbuf;
+		cvtColor(view, viewGray, CV_BGR2GRAY);
 
-        bool found;
-        switch( pattern )
-        {
-            case CHESSBOARD:
-                found = findChessboardCorners( view, boardSize, pointbuf,
-                    CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FAST_CHECK | CV_CALIB_CB_NORMALIZE_IMAGE);
-                break;
-            case CIRCLES_GRID:
-                found = findCirclesGrid( view, boardSize, pointbuf );
-                break;
-            case ASYMMETRIC_CIRCLES_GRID:
-                found = findCirclesGrid( view, boardSize, pointbuf, CALIB_CB_ASYMMETRIC_GRID );
-                break;
-            default:
-                return fprintf( stderr, "Unknown pattern type\n" ), -1;
-        }
+		const Ptr<FeatureDetector> &featureDetect = blobDetector;
 
-       // improve the found corners' coordinate accuracy
-        if( pattern == CHESSBOARD && found) cornerSubPix( viewGray, pointbuf, Size(11,11),
-            Size(-1,-1), TermCriteria( CV_TERMCRIT_EPS+CV_TERMCRIT_ITER, 30, 0.1 ));
+		// Detect blobs.
+		//std::vector<KeyPoint> keypoints;
+		//blobDetector.get()->detect(view, keypoints);
 
-        if( mode == CAPTURING && found &&
-           (!captureIsOpen || clock() - prevTimestamp > delay*1e-3*CLOCKS_PER_SEC) )
-        {
-            imagePoints.push_back(pointbuf);
-            prevTimestamp = clock();
-            blink = captureIsOpen;
-        }
+		bool found;
+		switch (pattern)
+		{
+		case CHESSBOARD:
+			found = findChessboardCorners(view, boardSize, pointbuf,
+				CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FAST_CHECK | CV_CALIB_CB_NORMALIZE_IMAGE);
+			break;
+		case CIRCLES_GRID:
+			found = findCirclesGrid(view, boardSize, pointbuf);
+			break;
+		case ASYMMETRIC_CIRCLES_GRID:
+			if (method == 0)
+				found = findCirclesGrid(view, boardSize, pointbuf, CALIB_CB_ASYMMETRIC_GRID, featureDetect);
+			else
+				found = customFindAsymmCirclesGrid(view, boardSize, pointbuf, featureDetect);
+			break;
+		default:
+			return fprintf(stderr, "Unknown pattern type\n"), -1;
+		}
+				
+		// improve the found corners' coordinate accuracy
+		if (pattern == CHESSBOARD && found)
+			cornerSubPix(viewGray, pointbuf, Size(11, 11),
+				Size(-1, -1), TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
 
-        if(found)
-            drawChessboardCorners( view, boardSize, Mat(pointbuf), found );
+		if (mode == CAPTURING && found &&
+			(!captureIsOpen || clock() - prevTimestamp > delay*1e-3*CLOCKS_PER_SEC))
+		{
+			imagePoints.push_back(pointbuf);
+			prevTimestamp = clock();
+			blink = captureIsOpen;
+		}
+
+		//if (pattern == ASYMMETRIC_CIRCLES_GRID)
+		//	customDrawChessboardCorners(view, boardSize, pointbuf, found);
+		//else
+		{
+			if (found)
+				drawChessboardCorners(view, boardSize, Mat(pointbuf), found);
+		}
+
+
 
         string msg = mode == CAPTURING ? "100/100" :
             mode == CALIBRATED ? "Calibrated" : "Press 'g' to start";
@@ -609,7 +805,30 @@ int main( int argc, char** argv )
 
         }
 
-        imshow("Image View", view);
+        cv::imshow("Image View", view);
+
+		
+		// create gui for blobe detector
+		
+		cv::createTrackbar("method", "Image View", &method, 1);
+
+		cv::createTrackbar("minThreshold", "Image View", &minThresholdValue, 500, minThresholdTrackbar);
+		cv::createTrackbar("maxThreshold", "Image View", &maxThresholdValue, 500, maxThresholdTrackbar);
+
+		cv::createTrackbar("filterByArea", "Image View", &filterByArea, 1, filterByAreaTrackbar);
+		cv::createTrackbar("minArea", "Image View", &minArea, 5000, minAreaTrackbar);
+
+		cv::createTrackbar("filterByCircularity", "Image View", &filterByCircularity, 1, filterByCircularityTrackbar);
+		cv::createTrackbar("minCircularity", "Image View", &minCircularity, 100, minCircularityTrackbar);
+
+		cv::createTrackbar("filterByConvexity", "Image View", &filterByConvexity, 1, filterByConvexityTrackbar);
+		cv::createTrackbar("minConvexity", "Image View", &minConvexity, 100, minConvexityTrackbar);
+
+		cv::createTrackbar("filterByInertia", "Image View", &filterByInertia, 1, filterByInertiaTrackbar);
+		cv::createTrackbar("minInertiaRatio", "Image View", &minInertiaRatio, 100, minInertiaRatioTrackbar);
+
+		
+
         int key = 0xff & waitKey(captureIsOpen ? 50 : 500);
 
         if( (key & 255) == 27 )
@@ -681,5 +900,6 @@ int main( int argc, char** argv )
 
     return 0;
 }
+
 
 #endif
