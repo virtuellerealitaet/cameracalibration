@@ -118,14 +118,17 @@
 #include <ctype.h>
 
 // OpenCV
-#include <opencv2\core.hpp>
-#include <opencv2\imgproc.hpp>
-#include <opencv2\calib3d.hpp>
-#include <opencv2\highgui.hpp>
-#include <opencv2\imgcodecs.hpp>
-#include <opencv2\features2d.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/calib3d.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/features2d.hpp>
 
+#ifdef WIN32
 typedef BYTE PIXELVALUE;
+#endif
+
 
 #define exit(_Code) { if (_Code) { assert(0); std::cout << "Quit..."; std::string s; std::cin.putback('X'); std::cin >> s; exit(_Code); } }
 
@@ -139,4 +142,11 @@ typedef BYTE PIXELVALUE;
 #define  LOGDEBUG(...)		{	printf("DEBUG : "); printf(__VA_ARGS__);}
 #define  LOGWARNING(...)	{	printf("WARNING : "); printf(__VA_ARGS__);}
 #define  LOGERROR(...)		{	printf("ERROR : "); printf(__VA_ARGS__);}
+#endif
+
+
+#ifdef WIN32
+SHORT WINAPI GetAsyncKeyState(
+    _In_ int vKey
+    );
 #endif

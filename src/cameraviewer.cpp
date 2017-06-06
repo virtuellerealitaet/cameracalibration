@@ -20,9 +20,7 @@
 using namespace cv;
 using namespace std;
 
-SHORT WINAPI GetAsyncKeyState(
-	_In_ int vKey
-	);
+
 
 // ***************************************************
 // CAMERA DATA

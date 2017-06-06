@@ -5,8 +5,46 @@
 #include <mutex>
 
 #include "Camera.h"
-#include "ps3eye.h"
 
+#include "stdafx.h"
+
+#ifdef WIN32
+#include "ps3eye.h"
+#endif
+
+namespace ps3eye
+{
+
+
+    class PS3Camera
+    {
+
+        PS3Camera()
+        {
+
+        };
+
+        ~PS3Camera()
+        {
+
+        };
+
+    };
+
+
+
+    static std::vector<PS3Camera> getDevices()
+    {
+        std::vector<PS3Camera> devices;
+
+        // check available sony eye camera devices
+
+
+
+    }
+
+
+}
 
 class MyClass
 {
@@ -158,10 +196,19 @@ private:
 
 	bool initCamera()
 	{
-		using namespace ps3eye;
+
 
 		// list out the devices
+
+        #ifdef WIN32
+        using namespace ps3eye;
 		std::vector<PS3EYECam::PS3EYERef> devices(PS3EYECam::getDevices());
+        #endif
+
+        #ifdef UNIX
+        std::vector<PS3EYECam::PS3EYERef> devices(PS3EYECam::getDevices());
+        #endif
+
 		LOGCON("Found %d cameras.\n", (int)devices.size());
 
 		bool initializationResult = false;
