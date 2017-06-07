@@ -35,12 +35,16 @@ namespace PS3EYECam
     class PS3Camera
     {
 
+        int apiID;
+
     public :
 
         PS3Camera(std::string deviceName) :
             _deviceName(deviceName),
             _initialized(false)
         {
+
+            apiID = cv::CAP_V4L2;      // choose API
 
         };
 
@@ -76,18 +80,18 @@ namespace PS3EYECam
         bool init()
         {
             // try to open device
-             int apiID = cv::CAP_V4L2;      // choose API
-            _deviceID = apiID + getDeviceID(_deviceName); // open camera
+
+            _deviceID = getDeviceID(_deviceName); // open camera
 
 
             // open selected camera using selected API
 
-            _camera.open(_deviceID);
+            _cap.open(apiID + _deviceID);
 
-            if (_camera.isOpened())
+            if (_cap.isOpened())
             {
                 _initialized = true;
-                _camera.release();
+                _cap.release();
             }
             else
                 _initialized = false;
@@ -157,41 +161,64 @@ namespace PS3EYECam
 
 
 
-            printf("init %d %d %d\n", resX, resY, framerate);
+            printf("init %d %d %d\n", _width, _height, _framerate);
 
             return true;
         }
 
         void release()
         {
-            _camera.release();
+            stop();
             _initialized = false;
         }
 
         void start()
         {
-            _camera.open(_deviceID);
+
+            LOGCON("camera %d start()\n", _deviceID);
+            _cap.open(apiID + _deviceID);
+
+            _cap.set(CV_CAP_PROP_FPS, _framerate);
+            _cap.set(CV_CAP_PROP_FRAME_WIDTH, _width);
+            _cap.set(CV_CAP_PROP_FRAME_HEIGHT, _height);
+
         }
 
 
         void stop()
         {
-            _camera.release();
+            LOGCON("camera %d stop()\n", _deviceID);
+            _cap.release();
         }
 
         void getFrame(uint_fast8_t* frame)
         {
 
-            if (_camera.isOpened())
+            if (_cap.isOpened())
             {
                 //cv::Mat mat;
-                _camera >> _latestFrame;
-                //frame = (uint8_t *)_latestFrame.ptr();
-                frame = _latestFrame.ptr();
+                _cap >> _latestFrame;
+                frame = (uint8_t *)_latestFrame.ptr();
+                //frame = _latestFrame.ptr();
             }
+            else
+            {
+                std::cout << "camera is not opened !" << std::endl;
+            }
+        }
 
+        void getFrame(cv::Mat &img)
+        {
 
-
+            if (_cap.isOpened())
+            {
+                //cv::Mat mat;
+                _cap >> img;
+            }
+            else
+            {
+                std::cout << "camera is not opened !" << std::endl;
+            }
         }
 
 
@@ -257,7 +284,7 @@ namespace PS3EYECam
 
         cv::Mat _latestFrame;
 
-        cv::VideoCapture    _camera;        // frame grabber
+        cv::VideoCapture    _cap;        // frame grabber
         int                 _deviceID;      // device id
         std::string         _deviceName;    // device name /dev/videoX
 
@@ -631,9 +658,7 @@ private:
                 _framerate          = _cameraPtr->getFrameRate();
                 _numColorChannels   = _cameraPtr->getOutputBytesPerPixel();
 
-				// allocate memory for output frame
-				//frame_bgr = new uint8_t[_resolution.x * _resolution.y * _numColorChannels];
-
+    \
                 LOGCON("Allocating memory for frame dimension [%d, %d, %d]\n", _resolution.x, _resolution.y, _numColorChannels);
 
 
@@ -696,21 +721,16 @@ private:
 		while (!stop_thread)
 		{
 
-			_cameraPtr->getFrame(frame_bgr);
+            //_cameraPtr->getFrame(frame_bgr);
 
 			g_pages_mutex.lock();
 			{
 
-                unsigned char *input = (unsigned char*)(_latestCamFrame.data);
-                memcpy(input, frame_bgr, sizeof(uint8_t) * _resolution.x * _resolution.y * _numColorChannels);
+                //unsigned char *input = (unsigned char*)(_latestCamFrame.data);
+                //memcpy(input, frame_bgr, sizeof(uint8_t) * _resolution.x * _resolution.y * _numColorChannels);
 
-//				if (_flipHorizontally && _flipVertically)
-//					cv::flip(_latestCamFrame, _latestCamFrame, -1);
-//				else if (_flipHorizontally)
-//					cv::flip(_latestCamFrame, _latestCamFrame, 0);
-//				else if (_flipVertically)
-//					cv::flip(_latestCamFrame, _latestCamFrame, 1);
-			
+                _cameraPtr->getFrame(_latestCamFrame);
+
 				// if callback function is set, return image to the function
 				if (processFrame)
 				{

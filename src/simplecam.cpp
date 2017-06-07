@@ -8,20 +8,19 @@
 #include "ThreadCamera.h"
 
 
-const int NUM_CAMERAS = 1;
+const int NUM_CAMERAS = 2;
 
 static ThreadCamera *VideoCapCam[NUM_CAMERAS];
 static bool newframe[NUM_CAMERAS];
 static cv::Mat current_frame[NUM_CAMERAS];
 static cv::Mat roi[NUM_CAMERAS];
-static cv::Mat combined;
 
 static void cameracallback(cv::Mat frame, void *userdata)
 {
     //int camIndex = (int)userdata;
     int camIndex = *((int*)(&userdata));
 
-    std::cout << "new frame for index " << camIndex << std::endl;
+    //std::cout << "new frame for index " << camIndex << std::endl;
 
     frame.copyTo(current_frame[camIndex]);
     newframe[camIndex] = true;
@@ -58,10 +57,14 @@ bool startCameras()
 
             VideoCapCam[camIdx]->setCallback(cameracallback, (void*)camIdx);
 
-            bool success = VideoCapCam[camIdx]->initialize(camIdx, 640, 480, 3, 30);
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+            //bool success = VideoCapCam[camIdx]->initialize(camIdx, 320, 240, 3, 187);
+            bool success = VideoCapCam[camIdx]->initialize(camIdx, 640, 480, 3, 60);
             if (!success)
                 return false;
 
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
 
     }
@@ -71,6 +74,8 @@ bool startCameras()
     for (int camIdx = 0; camIdx < numCameras; camIdx++)
     {
         printf("starting camera %d\n", camIdx);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
         VideoCapCam[camIdx]->startCapture();
 
@@ -105,39 +110,47 @@ bool stopCameras()
 }
 
 
-void mouseCB(int event, int x, int y, int flags, void*param)
-{
-
-}
-
-
 int main(int argc, char *argv[])
 {
 
     startCameras();
+    //return 0;
 
-    std::string windowName = "camera";
-    cv::namedWindow(windowName); // create a window to get keyboard events
-    //cv::setMouseCallback("Camera", mouseCB, 0);
+    std::vector<std::string> windowNames;
+
+    for (int camIndex = 0; camIndex < NUM_CAMERAS; camIndex++)
+    {
+        std::string windowName = "camera" + std::to_string(camIndex);
+        windowNames.push_back(windowName);
+        cv::namedWindow(windowName); // create a window to get keyboard events
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     while (true)
     {
 
-        printf("main loop...\n");
+        //printf("main loop...\n");
         //std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-        // quite program on keyboard input
-        char c = cvWaitKey(100);
-        if (c != -1)
-          break;
 
-        if (newframe[0])
+
+        //if (newframe[0])
+        for (int camIndex = 0; camIndex < NUM_CAMERAS; camIndex++)
         {
 
-            cv::imshow(windowName,current_frame[0]);
-            cv::waitKey(1);
+            if (current_frame[camIndex].size().area() > 0)
+            cv::imshow(windowNames[camIndex],current_frame[camIndex]);
+
+            //current_frame[0] = false;
+            //cv::waitKey(1);
 
         }
+
+        // quite program on keyboard input
+        char c = cvWaitKey(1);
+        if (c != -1)
+          break;
 
 
     }
