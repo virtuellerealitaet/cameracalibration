@@ -196,7 +196,14 @@ target_link_libraries(simplecam
   ${OpenCV_LIBS}
   Qt5::Widgets
   Qt5::Core
-  ${Boost_LIBRARIES})
+  ${Boost_LIBRARIES}
+    pthread)
+
+
+#APR_ONLY_LIBS = -lapr-1 -lpthread
+
+
+add_definitions(-DUNIX)
 
 endif()
 

@@ -1,9 +1,12 @@
 
 #include "stdafx.h"
 
-
 // qt includes
 #include <QApplication>
+
+#include "ThreadCamera.h"
+
+#if 0
 
 // opencv includes
 #include <opencv2/core.hpp>
@@ -142,9 +145,92 @@ int getDeviceID(std::string resource)
 
 }
 
+#endif
+
+std::vector<ThreadCamera*> VideoCapCam;
+
+bool startCameras()
+{
+
+
+    if (!PS3EYECam::setupDevices())
+    {
+        printf("Initialization of Sony Eye Cam(s) failed. Exiting..\n");
+        return 0;
+    }
+
+
+    std::vector<PS3EYECam::PS3EYERef> devices = PS3EYECam::getDevices();
+
+    // load an image
+
+    int framecounter = 0;
+
+    int numCameras = devices.size();
+    if (numCameras > 0)
+    {
+
+        VideoCapCam.clear();
+
+        for (int c = 0; c < numCameras; c++)
+        {
+            ThreadCamera *cam = new ThreadCamera();
+            bool success = cam->initialize(c, 320, 240,3, 30);
+            if (!success)
+                return false;
+            else
+                VideoCapCam.push_back(cam);
+        }
+
+    }
+
+    for (int camIdx = 0; camIdx < numCameras; camIdx++)
+    {
+        printf("starting camera %d\n", camIdx);
+
+
+        VideoCapCam[camIdx]->startCapture();
+
+    }
+
+
+    return true;
+
+}
+
+
+bool stopCameras()
+{
+
+    int numCameras = VideoCapCam.size();
+
+    for (int camIdx = 0; camIdx < numCameras; camIdx++)
+    {
+        VideoCapCam[camIdx]->stopCapture();
+
+        printf("stopping camera %d\n", camIdx);
+    }
+
+    for (int camIdx = 0; camIdx < numCameras; camIdx++)
+    {
+        delete VideoCapCam[camIdx];
+
+        printf("deleting camera %d\n", camIdx);
+    }
+
+    VideoCapCam.clear();
+
+
+
+    return true;
+}
+
+
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
+
+#if 0
 
     std::vector<std::string> devices;
 
@@ -225,13 +311,16 @@ int main(int argc, char *argv[])
             cameras.push_back(cap);
     }
 
-    // load an image
+#endif
 
-    //cv::Mat img = cv::imread("/home/mstengel/work/deeplearning/deepdream/deepdream/angle.jpg");
+    startCameras();
 
-    int framecounter = 0;
+    stopCameras();
 
-    int numCameras = cameras.size();
+
+#if 0
+
+    int numCameras = devices.size();
     if (numCameras > 0)
     {
         for (;;)
@@ -241,7 +330,7 @@ int main(int argc, char *argv[])
             {
 
                 cv::Mat img;
-                cameras[c] >> img;
+                devices[c] >> img;
 
                 // display image
                 std::string camName = "sonyEye";
@@ -258,6 +347,8 @@ int main(int argc, char *argv[])
 
         }
     }
+
+    #endif
 
 
 

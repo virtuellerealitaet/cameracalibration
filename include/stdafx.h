@@ -32,73 +32,77 @@
 
 #pragma once
 
+//#define UNIX
+
 #ifdef _WIN32
 
-#if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
-#define _CRT_SECURE_NO_WARNINGS
+    #if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
+    #define _CRT_SECURE_NO_WARNINGS
+    #endif
+
+    #include <ctype.h>          // toupper, isprint
+    #include <math.h>           // sqrtf, powf, cosf, sinf, floorf, ceilf
+    #include <stdio.h>          // vsnprintf, sscanf, printf
+    #include <stdlib.h>         // NULL, malloc, free, qsort, atoi
+
+    #if defined(_MSC_VER) && _MSC_VER <= 1500 // MSVC 2008 or earlier
+    #include <stddef.h>         // intptr_t
+    #else
+    #include <stdint.h>         // intptr_t
+    #endif
+
+    #ifdef _MSC_VER
+    #pragma warning (disable: 4996) // 'This function or variable may be unsafe': strcpy, strdup, sprintf, vsnprintf, sscanf, fopen
+    #define snprintf _snprintf
+    #endif
+    #ifdef __clang__
+    #pragma clang diagnostic ignored "-Wold-style-cast"             // warning : use of old-style cast                              // yes, they are more terse.
+    #pragma clang diagnostic ignored "-Wdeprecated-declarations"    // warning : 'xx' is deprecated: The POSIX name for this item.. // for strdup used in demo code (so user can copy & paste the code)
+    #pragma clang diagnostic ignored "-Wint-to-void-pointer-cast"   // warning : cast to 'void *' from smaller integer type 'int'
+    #pragma clang diagnostic ignored "-Wformat-security"            // warning : warning: format string is not a string literal
+    #pragma clang diagnostic ignored "-Wexit-time-destructors"      // warning : declaration requires an exit-time destructor       // exit-time destruction order is undefined. if MemFree() leads to users code that has been disabled before exit it might cause problems. ImGui coding style welcomes static/globals.
+    #if __has_warning("-Wreserved-id-macro")
+    #pragma clang diagnostic ignored "-Wreserved-id-macro"          // warning : macro name is a reserved identifier                //
+    #endif
+    #elif defined(__GNUC__)
+    #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"          // warning: cast to pointer from integer of different size
+    #pragma GCC diagnostic ignored "-Wformat-security"              // warning : format string is not a string literal (potentially insecure)
+    #pragma GCC diagnostic ignored "-Wdouble-promotion"             // warning: implicit conversion from 'float' to 'double' when passing argument to function
+    #pragma GCC diagnostic ignored "-Wconversion"                   // warning: conversion to 'xxxx' from 'xxxx' may alter its value
+    #if (__GNUC__ >= 6)
+    #pragma GCC diagnostic ignored "-Wmisleading-indentation"       // warning: this 'if' clause does not guard this statement      // GCC 6.0+ only. See #883 on github.
+    #endif
+    #endif
+
+    // fix line endings for Windows users
+
+    #define IM_NEWLINE "\r\n"
+    #else
+    #define IM_NEWLINE "\n"
+
+
+    #define IM_ARRAYSIZE(_ARR)  ((int)(sizeof(_ARR)/sizeof(*_ARR)))
+    #define IM_MAX(_A,_B)       (((_A) >= (_B)) ? (_A) : (_B))
 #endif
 
-#include <ctype.h>          // toupper, isprint
-#include <math.h>           // sqrtf, powf, cosf, sinf, floorf, ceilf
-#include <stdio.h>          // vsnprintf, sscanf, printf
-#include <stdlib.h>         // NULL, malloc, free, qsort, atoi
+#ifdef WIN32
 
-#if defined(_MSC_VER) && _MSC_VER <= 1500 // MSVC 2008 or earlier
-#include <stddef.h>         // intptr_t
-#else
-#include <stdint.h>         // intptr_t
-#endif
+    // Windows API
+    #include <Windows.h>
+    #include <windowsx.h>
+    #include <direct.h>
+    #include <mmsystem.h>
 
-#ifdef _MSC_VER
-#pragma warning (disable: 4996) // 'This function or variable may be unsafe': strcpy, strdup, sprintf, vsnprintf, sscanf, fopen
-#define snprintf _snprintf
-#endif
-#ifdef __clang__
-#pragma clang diagnostic ignored "-Wold-style-cast"             // warning : use of old-style cast                              // yes, they are more terse.
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"    // warning : 'xx' is deprecated: The POSIX name for this item.. // for strdup used in demo code (so user can copy & paste the code)
-#pragma clang diagnostic ignored "-Wint-to-void-pointer-cast"   // warning : cast to 'void *' from smaller integer type 'int'
-#pragma clang diagnostic ignored "-Wformat-security"            // warning : warning: format string is not a string literal
-#pragma clang diagnostic ignored "-Wexit-time-destructors"      // warning : declaration requires an exit-time destructor       // exit-time destruction order is undefined. if MemFree() leads to users code that has been disabled before exit it might cause problems. ImGui coding style welcomes static/globals.
-#if __has_warning("-Wreserved-id-macro")
-#pragma clang diagnostic ignored "-Wreserved-id-macro"          // warning : macro name is a reserved identifier                //
-#endif
-#elif defined(__GNUC__)
-#pragma GCC diagnostic ignored "-Wint-to-pointer-cast"          // warning: cast to pointer from integer of different size
-#pragma GCC diagnostic ignored "-Wformat-security"              // warning : format string is not a string literal (potentially insecure)
-#pragma GCC diagnostic ignored "-Wdouble-promotion"             // warning: implicit conversion from 'float' to 'double' when passing argument to function
-#pragma GCC diagnostic ignored "-Wconversion"                   // warning: conversion to 'xxxx' from 'xxxx' may alter its value
-#if (__GNUC__ >= 6)
-#pragma GCC diagnostic ignored "-Wmisleading-indentation"       // warning: this 'if' clause does not guard this statement      // GCC 6.0+ only. See #883 on github.
-#endif
-#endif
-
-// fix line endings for Windows users
-
-#define IM_NEWLINE "\r\n"
-#else
-#define IM_NEWLINE "\n"
-
-
-#define IM_ARRAYSIZE(_ARR)  ((int)(sizeof(_ARR)/sizeof(*_ARR)))
-#define IM_MAX(_A,_B)       (((_A) >= (_B)) ? (_A) : (_B))
-
-
-// Windows API
-#include <Windows.h>
-#include <windowsx.h>
-#include <direct.h>
-#include <mmsystem.h>
-
-// windows dialog includes
-#pragma region Includes and Manifest Dependencies
-#include <windows.h>
-#include <windowsx.h>
-#include <strsafe.h>
-#include <new>
-#include <shlobj.h>
-#include <shlwapi.h>
-#include <atlstr.h>
-#include <atlconv.h>
+    // windows dialog includes
+    #pragma region Includes and Manifest Dependencies
+    #include <windows.h>
+    #include <windowsx.h>
+    #include <strsafe.h>
+    #include <new>
+    #include <shlobj.h>
+    #include <shlwapi.h>
+    #include <atlstr.h>
+    #include <atlconv.h>
 
 #endif
 

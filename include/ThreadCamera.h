@@ -12,6 +12,7 @@
 #include "ps3eye.h"
 #endif
 
+
 #ifdef UNIX
 // boost
 #include <regex>
@@ -22,6 +23,13 @@
 
 namespace PS3EYECam
 {
+
+    enum class EOutputFormat
+    {
+        Bayer,
+        BGR,
+        RGB
+    };
 
 
     class PS3Camera
@@ -34,9 +42,6 @@ namespace PS3EYECam
             _initialized(false)
         {
 
-
-
-
         };
 
         ~PS3Camera()
@@ -45,26 +50,54 @@ namespace PS3EYECam
 
         };
 
-        bool isOpen() { return _initialized; }
+        bool isInitialized() { return _initialized; }
 
-        bool open()
+        int getDeviceID(std::string resource)
+        {
+
+          const char * pattern = "\\d+";
+
+          boost::regex re(pattern);
+
+          boost::sregex_iterator it(resource.begin(), resource.end(), re);
+          boost::sregex_iterator end;
+
+          for( ; it != end; ++it)
+          {
+              std::cout<< it->str() <<"\n";
+              return atoi(it->str().c_str());
+
+          }
+
+          return 0;
+
+        }
+
+        bool init()
         {
             // try to open device
-            _deviceID = getDeviceID(_deviceName); // open camera
-            int apiID = cv::CAP_V4L2;      // choose API
+             int apiID = cv::CAP_V4L2;      // choose API
+            _deviceID = apiID + getDeviceID(_deviceName); // open camera
+
 
             // open selected camera using selected API
 
-            _camera.open(deviceID + apiID);
+            _camera.open(_deviceID);
 
             if (_camera.isOpened())
             {
                 _initialized = true;
+                _camera.release();
             }
             else
                 _initialized = false;
 
             return _initialized;
+        }
+
+        bool init(int resX, int resY, double framerate, EOutputFormat format)
+        {
+            return true;
         }
 
         void release()
@@ -73,12 +106,110 @@ namespace PS3EYECam
             _initialized = false;
         }
 
+        void start()
+        {
+            _camera.open(_deviceID);
+        }
+
+
+        void stop()
+        {
+            _camera.release();
+        }
+
+        void getFrame(uint_fast8_t* frame)
+        {
+            _camera >> _latestFrame;
+            frame = (uint8_t *)_latestFrame.ptr();
+
+        }
+
+
+
+        uint8_t getExposure() { return _exposure;}
+        uint8_t getGain() { return _gain;}
+        uint8_t getContrast() { return _contrast;}
+        uint8_t getBrightness() { return _brightness;}
+        uint8_t getSharpness() { return _sharpness;}
+
+        uint8_t getAutogain() { return _autogain;}
+        uint8_t getAutoExposure() { return _autoexposure;}
+        uint8_t getAutoWhiteBalance() { return _autowhitebalance;}
+        uint8_t getFlipV() { return _flipV;}
+        uint8_t getFlipH() { return _flipH;}
+
+        void setExposure(uint8_t exposure) {
+            _exposure = exposure;
+        }
+
+        void setGain(uint8_t gain) {
+            _gain = gain;
+        }
+
+        void setContrast(uint8_t contrast) {
+            _contrast = contrast;
+        }
+
+        void setBrightness(uint8_t brightness) {
+            _brightness = brightness;
+        }
+
+        void setSharpness(uint8_t sharpness) {
+            _sharpness = sharpness;
+        }
+
+        void setAutogain(uint8_t autogain) {
+            _autogain = autogain;
+        }
+
+        void setAutoExposure(uint8_t autoexposure) {
+            _autoexposure = autoexposure;
+        }
+
+        void setAutoWhiteBalance(uint8_t autowhitebalance) {
+            _autowhitebalance = autowhitebalance;
+        }
+
+        void setFlipV(uint8_t flipv) {
+            _flipV = flipv;
+        }
+
+        void setFlipH(uint8_t fliph) {
+            _flipH = fliph;
+        }
+
+        uint getWidth() { return _width;}
+        uint getHeight() { return _height;}
+        uint getFrameRate() { return _framerate;}
+        uint getOutputBytesPerPixel() { return _numChannelPerPixel;}
+
+    private:
+
+        cv::Mat _latestFrame;
 
         cv::VideoCapture    _camera;        // frame grabber
         int                 _deviceID;      // device id
         std::string         _deviceName;    // device name /dev/videoX
 
         bool                _initialized;
+
+        uint    _width;
+        uint    _height;
+
+        uint    _framerate;
+
+        uint    _numChannelPerPixel;
+
+        uint8_t _exposure;
+        uint8_t _gain;
+        uint8_t _sharpness;
+        uint8_t _contrast;
+        uint8_t _brightness;
+        uint8_t _autoexposure;
+        uint8_t _autowhitebalance;
+        uint8_t _autogain;
+        uint8_t _flipV;
+        uint8_t _flipH;
 
     };
 
@@ -183,26 +314,7 @@ namespace PS3EYECam
 
     }
 
-    static int getDeviceID(std::string resource)
-    {
 
-      const char * pattern = "\\d+";
-
-      boost::regex re(pattern);
-
-      boost::sregex_iterator it(resource.begin(), resource.end(), re);
-      boost::sregex_iterator end;
-
-      for( ; it != end; ++it)
-      {
-          std::cout<< it->str() <<"\n";
-          return atoi(it->str().c_str());
-
-      }
-
-      return 0;
-
-    }
 
 //    static bool checkDeviceAvailability(int deviceID)
 //    {
@@ -230,7 +342,7 @@ namespace PS3EYECam
         for (int i = 0; i < numSonyEyeCameras; i++)
         {
             PS3Camera cam(deviceNames[i]);
-            if (cam.initialize())
+            if (cam.init())
                 sonyEyeCams.push_back(cam);
             else
             {
@@ -253,13 +365,13 @@ namespace PS3EYECam
 
     }
 
-    static std::vector<*PS3Camera> getDevices()
+    static std::vector<PS3EYERef> getDevices()
     {
-        std::vector<*PS3Camera> devices;
+        std::vector<PS3EYERef> devices;
         for (int c = 0; c < sonyEyeCams.size(); c++ )
         {
-            PS3Camera *cam = sonyEyeCams[i];
-            devices.push_back(cam);
+            PS3EYERef camPtr = &sonyEyeCams[c];
+            devices.push_back(camPtr);
         }
         return devices;
     }
@@ -427,8 +539,7 @@ private:
         #endif
 
         #ifdef UNIX
-        //std::vector<PS3EYECam::PS3EYERef> devices(PS3EYECam::getDevices());
-        std::vector<*PS3Camera> = PS3EYECam::getDevices();
+        std::vector<PS3EYECam::PS3EYERef> devices = PS3EYECam::getDevices();
         #endif
 
 		LOGCON("Found %d cameras.\n", (int)devices.size());
@@ -439,10 +550,12 @@ private:
 		{
 			_cameraPtr = devices.at(_deviceID);
 
+
+
 			if (_numColorChannels == 3)
-				initializationResult = _cameraPtr->init(_resolution.x, _resolution.y, _framerate, ps3eye::PS3EYECam::EOutputFormat::BGR);
+                initializationResult = _cameraPtr->init(_resolution.x, _resolution.y, _framerate, PS3EYECam::EOutputFormat::BGR);
 			else
-				initializationResult = _cameraPtr->init(_resolution.x, _resolution.y, _framerate, ps3eye::PS3EYECam::EOutputFormat::Bayer);
+                initializationResult = _cameraPtr->init(_resolution.x, _resolution.y, _framerate, PS3EYECam::EOutputFormat::Bayer);
 
 			if (initializationResult)
 			{
@@ -517,12 +630,12 @@ private:
 				unsigned char *input = (unsigned char*)(_latestCamFrame.data);
 				memcpy(input, frame_bgr, sizeof(uint8_t) * _resolution.x * _resolution.y * _numColorChannels);
 
-				if (_flipHorizontally && _flipVertically)
-					cv::flip(_latestCamFrame, _latestCamFrame, -1);
-				else if (_flipHorizontally)
-					cv::flip(_latestCamFrame, _latestCamFrame, 0);
-				else if (_flipVertically)
-					cv::flip(_latestCamFrame, _latestCamFrame, 1);
+//				if (_flipHorizontally && _flipVertically)
+//					cv::flip(_latestCamFrame, _latestCamFrame, -1);
+//				else if (_flipHorizontally)
+//					cv::flip(_latestCamFrame, _latestCamFrame, 0);
+//				else if (_flipVertically)
+//					cv::flip(_latestCamFrame, _latestCamFrame, 1);
 			
 				// if callback function is set, return image to the function
 				if (processFrame)
@@ -578,24 +691,23 @@ public:
 	bool			_flipHorizontally = false;
 	bool			_flipVertically = false;
 
-	
 
-	void ThreadCamera::updateCameraSettings() {
+    void updateCameraSettings() {
 
 		if (!_isInitialized)
 			return;
 
-		uint8_t exposure = _cameraPtr->getExposure();
-		uint8_t gain = _cameraPtr->getGain();
-		uint8_t brightness = _cameraPtr->getBrightness();
-		uint8_t contrast = _cameraPtr->getContrast();
-		uint8_t sharpness = _cameraPtr->getSharpness();
+        uint8_t exposure        = _cameraPtr->getExposure();
+        uint8_t gain            = _cameraPtr->getGain();
+        uint8_t brightness      = _cameraPtr->getBrightness();
+        uint8_t contrast        = _cameraPtr->getContrast();
+        uint8_t sharpness       = _cameraPtr->getSharpness();
 
-		bool flipVertical = _cameraPtr->getFlipV();
-		bool flipHorizontal = _cameraPtr->getFlipH();
+        bool flipVertical       = _cameraPtr->getFlipV();
+        bool flipHorizontal     = _cameraPtr->getFlipH();
 
-		bool autoGain = _cameraPtr->getAutogain();
-		bool autoWhiteBalance = _cameraPtr->getAutoWhiteBalance();
+        bool autoGain           = _cameraPtr->getAutogain();
+        bool autoWhiteBalance   = _cameraPtr->getAutoWhiteBalance();
 
 		if (exposure != _exposure) {
 			_cameraPtr->setExposure(uint8_t(_exposure));
