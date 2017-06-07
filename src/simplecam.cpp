@@ -30,12 +30,20 @@ bool startCameras()
 {
 
 
+
+	
+
+#ifdef UNIX
     if (!PS3EYECam::setupDevices())
     {
         printf("Initialization of Sony Eye Cam(s) failed. Exiting..\n");
         return 0;
     }
+#endif
 
+#ifdef WIN32
+	using namespace ps3eye;
+#endif
 
     std::vector<PS3EYECam::PS3EYERef> devices = PS3EYECam::getDevices();
 

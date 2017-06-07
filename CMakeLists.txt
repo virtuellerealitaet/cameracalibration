@@ -63,7 +63,9 @@ else()
   set(LIBUSB_LIBS debug ${LIBUSB_LIB_DEBUG} optimized ${LIBUSB_LIB_RELEASE})
   
   # Qt - not required
-
+  find_package(Qt5Widgets)
+  find_package(Qt5Core)
+  
   # BOOST - not required
 
 endif()

@@ -5,7 +5,6 @@
 #include <mutex>
 
 #include "Camera.h"
-
 #include "stdafx.h"
 
 #ifdef WIN32
@@ -19,7 +18,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/regex.hpp>
-#endif
+
 
 namespace PS3EYECam
 {
@@ -470,6 +469,8 @@ namespace PS3EYECam
 
 
 }
+
+#endif
 
 class MyClass
 {
