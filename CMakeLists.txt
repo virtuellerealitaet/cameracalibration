@@ -197,7 +197,10 @@ target_link_libraries(simplecam
   Qt5::Widgets
   Qt5::Core
   ${Boost_LIBRARIES}
-    pthread)
+  pthread
+  #SDL2
+  #readline
+  )
 
 
 #APR_ONLY_LIBS = -lapr-1 -lpthread

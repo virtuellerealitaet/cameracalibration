@@ -95,8 +95,70 @@ namespace PS3EYECam
             return _initialized;
         }
 
-        bool init(int resX, int resY, double framerate, EOutputFormat format)
+        bool init(uint resX, uint resY, uint framerate, EOutputFormat format)
         {
+
+            _width = resX;
+            _height = resY;
+            _framerate = framerate;
+
+            if (format == EOutputFormat::Bayer)
+                _numChannelPerPixel = 1;
+            else
+                _numChannelPerPixel = 3;
+
+
+//            cap.set(CV_CAP_PROP_FPS, 30.0);
+//            cap.set(CV_CAP_PROP_FRAME_WIDTH, 320);
+//            cap.set(CV_CAP_PROP_FRAME_HEIGHT, 240);
+
+//            std::string v4cl2cmd = "v4l2-ctl -d "+d + " ";
+
+//            std::string output;
+//            LoggedSystem("", v4cl2cmd + "-c sharpness=0",output); // [0,63]
+//            LoggedSystem("", v4cl2cmd + "-c auto_exposure=1",output); // 1 is manual exposure
+//            LoggedSystem("", v4cl2cmd + "-c gain_automatic=0",output); // [0,1]
+//            LoggedSystem("", v4cl2cmd + "-c gain=0",output); // [0,63]
+//            LoggedSystem("", v4cl2cmd + "-c exposure=255",output); // [0,255]
+
+            //std::this_thread::sleep_for (std::chrono::seconds(1));
+
+
+
+            //cap.set(CV_CAP_PROP_AUTO_EXPOSURE, 0);
+
+            //cap.set(CV_CAP_PROP_GAIN, 0);
+            //cap.set(CV_CAP_PROP_SHARPNESS, 0);
+
+            //cap.set(CV_CAP_PROP_EXPOSURE, 4);
+
+            // Get fixed Cam Properties
+
+    //            double Brightness = cap.get(CV_CAP_PROP_BRIGHTNESS);
+    //            double Contrast   = cap.get(CV_CAP_PROP_CONTRAST );
+    //            double Saturation = cap.get(CV_CAP_PROP_SATURATION);
+    //            cap.set(CV_CAP_PROP_GAIN, 0.0);
+    //            double Gain       = cap.get(CV_CAP_PROP_GAIN);
+    //            double Exposure   = cap.get(CV_CAP_PROP_AUTO_EXPOSURE );
+
+
+    //            // Display Them
+
+    //            std::cout<<"===================================="<<std::endl;
+    //            std::cout<<"Default Brightness -------> "<<Brightness<<std::endl;
+    //            std::cout<<"Default Contrast----------> "<<Contrast<<std::endl;
+    //            std::cout<<"Default Saturation--------> "<<Saturation<<std::endl;
+    //            std::cout<<"Default Gain--------------> "<<Gain<<std::endl;
+    //            std::cout<<"Default exp --------------> "<<Exposure<<std::endl;
+    //            std::cout<<"===================================="<<std::endl;
+
+
+    //            cap.set(CV_CAP_PROP_EXPOSURE,-100);
+
+
+
+            printf("init %d %d %d\n", resX, resY, framerate);
+
             return true;
         }
 
@@ -119,8 +181,16 @@ namespace PS3EYECam
 
         void getFrame(uint_fast8_t* frame)
         {
-            _camera >> _latestFrame;
-            frame = (uint8_t *)_latestFrame.ptr();
+
+            if (_camera.isOpened())
+            {
+                //cv::Mat mat;
+                _camera >> _latestFrame;
+                //frame = (uint8_t *)_latestFrame.ptr();
+                frame = _latestFrame.ptr();
+            }
+
+
 
         }
 
@@ -270,7 +340,7 @@ namespace PS3EYECam
         // filter for sony eye cam
         for (int i = 0 ; i < (int)devices.size(); i++)
         {
-            //printf("checking %s\n", devices[i].c_str());
+            printf("checking %s\n", devices[i].c_str());
 
             if (devices[i].length() > 0)
             {
@@ -291,13 +361,18 @@ namespace PS3EYECam
                 // check line by line for ID_SERIAL info containing specific sony eye title
                 for (auto s : deviceInfoLines)
                 {
+
                     // check id serial for omnivision camera (sony eye 3)
                     std::string devicename = boost::algorithm::to_lower_copy(s);
-                    if (boost::algorithm::ifind_first(devicename,"id_serial=omnivision"))
+                    if (boost::algorithm::ifind_first(devicename,"id_serial="))
                     {
-                        // add sony eye to to device list
-                        sonyEyeDevices.push_back(canonicalDevice);
-                        break;
+                        printf("%s\n", s.c_str());
+                        if (boost::algorithm::ifind_first(devicename,"id_serial=omnivision"))
+                        {
+                            // add sony eye to to device list
+                            sonyEyeDevices.push_back(canonicalDevice);
+                            break;
+                        }
                     }
                 }
             }
@@ -314,16 +389,6 @@ namespace PS3EYECam
 
     }
 
-
-
-//    static bool checkDeviceAvailability(int deviceID)
-//    {
-
-
-//        if (numSonyEyeCameras == 0)
-//            return false;
-
-//    }
 
     static std::vector<std::string> deviceNames;
     static int numSonyEyeCameras = 0;
@@ -439,12 +504,11 @@ public:
 	bool initialize()
 	{
 		// default values
-		_deviceID = 0;
-		_resolution.x = 640;
-		_resolution.y = 480;
-		_framerate = 60;
-		_numColorChannels = 3;
-		_deviceID = 0;
+        _deviceID           = 0;
+        _resolution.x       = 640;
+        _resolution.y       = 480;
+        _framerate          = 60;
+        _numColorChannels   = 3;
 
 		return true;
 	};
@@ -457,12 +521,11 @@ public:
 		unsigned int framerate)
 	{
 
-		_deviceID = deviceID;
-		_resolution.x = camResolutionWidth;
-		_resolution.y = camResolutionHeight;
-		_framerate = framerate;
-		_numColorChannels = numColorChannels;
-		_deviceID = deviceID;
+        _deviceID           = deviceID;
+        _resolution.x       = camResolutionWidth;
+        _resolution.y       = camResolutionHeight;
+        _framerate          = framerate;
+        _numColorChannels   = numColorChannels;
 
 		return true;
 	}
@@ -486,7 +549,7 @@ public:
 	bool startCapture()
 	{
 		// This will start the thread. Notice move semantics!
-		the_thread = std::thread(&ThreadCamera::ThreadMain, this);
+        the_thread = std::thread(&ThreadCamera::ThreadMain, this);
 		
 		return true;
 	};
@@ -530,6 +593,7 @@ private:
 	bool initCamera()
 	{
 
+        printf("initCamera()\n");
 
 		// list out the devices
 
@@ -560,15 +624,18 @@ private:
 			if (initializationResult)
 			{
 
-				LOGCON("Initialization of PS3 Eye Cam successful !\n");
+                LOGCON("Initialization of PS3EyeCam (id %d) successful !\n", _deviceID);
 
-				_resolution.x = _cameraPtr->getWidth();
-				_resolution.y = _cameraPtr->getHeight();
-				_framerate = _cameraPtr->getFrameRate();
-				_numColorChannels = _cameraPtr->getOutputBytesPerPixel();
+                _resolution.x       = _cameraPtr->getWidth();
+                _resolution.y       = _cameraPtr->getHeight();
+                _framerate          = _cameraPtr->getFrameRate();
+                _numColorChannels   = _cameraPtr->getOutputBytesPerPixel();
 
 				// allocate memory for output frame
 				//frame_bgr = new uint8_t[_resolution.x * _resolution.y * _numColorChannels];
+
+                LOGCON("Allocating memory for frame dimension [%d, %d, %d]\n", _resolution.x, _resolution.y, _numColorChannels);
+
 
 				if (_numColorChannels == 3)
 					_latestCamFrame = cv::Mat(_resolution.y, _resolution.x, CV_8UC3);
@@ -577,7 +644,7 @@ private:
 
 			}
 			else {
-				LOGERROR("Initialization of PS3 Eye Cam faild !!\n");
+                LOGERROR("Initialization of PS3EyeCam (id %d) failed !!\n", _deviceID);
 				return false;
 			}
 		}
@@ -585,6 +652,11 @@ private:
 		frame_bgr = new uint8_t[_resolution.x * _resolution.y * _numColorChannels];
 
 		_isInitialized = _cameraPtr->isInitialized();
+
+        if (_isInitialized)
+            printf("PS3EyeCam (id %d) is initialzed.\n", _deviceID);
+        else
+            printf("PS3EyeCam (id %d) could not be initialzed.\n", _deviceID);
 
 		return _isInitialized;
 
@@ -613,6 +685,8 @@ private:
 	void ThreadMain()
 	{
 
+        printf("ThreadMain\n");
+
 		// initialize camera
 		if (!initCamera())
 			return;
@@ -627,8 +701,8 @@ private:
 			g_pages_mutex.lock();
 			{
 
-				unsigned char *input = (unsigned char*)(_latestCamFrame.data);
-				memcpy(input, frame_bgr, sizeof(uint8_t) * _resolution.x * _resolution.y * _numColorChannels);
+                unsigned char *input = (unsigned char*)(_latestCamFrame.data);
+                memcpy(input, frame_bgr, sizeof(uint8_t) * _resolution.x * _resolution.y * _numColorChannels);
 
 //				if (_flipHorizontally && _flipVertically)
 //					cv::flip(_latestCamFrame, _latestCamFrame, -1);

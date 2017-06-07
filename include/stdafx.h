@@ -32,8 +32,6 @@
 
 #pragma once
 
-//#define UNIX
-
 #ifdef _WIN32
 
     #if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
