@@ -21,6 +21,8 @@ static void cameracallback(cv::Mat frame, void *userdata)
     //int camIndex = (int)userdata;
     int camIndex = *((int*)(&userdata));
 
+    std::cout << "new frame for index " << camIndex << std::endl;
+
     frame.copyTo(current_frame[camIndex]);
     newframe[camIndex] = true;
 }
@@ -114,7 +116,8 @@ int main(int argc, char *argv[])
 
     startCameras();
 
-    cv::namedWindow("Camera");
+    std::string windowName = "camera";
+    cv::namedWindow(windowName); // create a window to get keyboard events
     //cv::setMouseCallback("Camera", mouseCB, 0);
 
     while (true)
@@ -123,17 +126,25 @@ int main(int argc, char *argv[])
         printf("main loop...\n");
         //std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-
-
-
+        // quite program on keyboard input
         char c = cvWaitKey(100);
-
         if (c != -1)
           break;
+
+        if (newframe[0])
+        {
+
+            cv::imshow(windowName,current_frame[0]);
+            cv::waitKey(1);
+
+        }
+
 
     }
 
     stopCameras();
+
+    cv::destroyAllWindows();
 
     return 0;
 }
