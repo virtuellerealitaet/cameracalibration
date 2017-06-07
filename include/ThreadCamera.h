@@ -190,37 +190,19 @@ namespace PS3EYECam
             _cap.release();
         }
 
-        void getFrame(uint_fast8_t* frame)
+        void getFrame(uint8_t* &frame)
         {
 
             if (_cap.isOpened())
             {
-                //cv::Mat mat;
                 _cap >> _latestFrame;
-                frame = (uint8_t *)_latestFrame.ptr();
-                //frame = _latestFrame.ptr();
+                frame = _latestFrame.ptr();
             }
             else
             {
                 std::cout << "camera is not opened !" << std::endl;
             }
         }
-
-        void getFrame(cv::Mat &img)
-        {
-
-            if (_cap.isOpened())
-            {
-                //cv::Mat mat;
-                _cap >> img;
-            }
-            else
-            {
-                std::cout << "camera is not opened !" << std::endl;
-            }
-        }
-
-
 
         uint8_t getExposure() { return _exposure;}
         uint8_t getGain() { return _gain;}
@@ -722,15 +704,15 @@ private:
 		while (!stop_thread)
 		{
 
-            //_cameraPtr->getFrame(frame_bgr);
+            _cameraPtr->getFrame(frame_bgr);
 
 			g_pages_mutex.lock();
 			{
 
-                //unsigned char *input = (unsigned char*)(_latestCamFrame.data);
-                //memcpy(input, frame_bgr, sizeof(uint8_t) * _resolution.x * _resolution.y * _numColorChannels);
+                //_cameraPtr->getFrame(frame_bgr);
 
-                _cameraPtr->getFrame(_latestCamFrame);
+                unsigned char *dst = (unsigned char*)(_latestCamFrame.data);
+                memcpy(dst, frame_bgr, sizeof(uint8_t) * _resolution.x * _resolution.y * _numColorChannels);
 
 				// if callback function is set, return image to the function
 				if (processFrame)

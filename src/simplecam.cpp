@@ -8,7 +8,7 @@
 #include "ThreadCamera.h"
 
 
-const int NUM_CAMERAS = 2;
+const int NUM_CAMERAS = 1;
 
 static ThreadCamera *VideoCapCam[NUM_CAMERAS];
 static bool newframe[NUM_CAMERAS];
