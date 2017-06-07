@@ -32,6 +32,8 @@
 
 #pragma once
 
+#ifdef _WIN32
+
 #if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
 #define _CRT_SECURE_NO_WARNINGS
 #endif
@@ -71,17 +73,16 @@
 #endif
 
 // fix line endings for Windows users
-#ifdef _WIN32
+
 #define IM_NEWLINE "\r\n"
 #else
 #define IM_NEWLINE "\n"
-#endif
+
 
 #define IM_ARRAYSIZE(_ARR)  ((int)(sizeof(_ARR)/sizeof(*_ARR)))
 #define IM_MAX(_A,_B)       (((_A) >= (_B)) ? (_A) : (_B))
 
 
-#ifdef WIN32
 // Windows API
 #include <Windows.h>
 #include <windowsx.h>
@@ -101,13 +102,16 @@
 
 #endif
 
-#include <iostream>
+
+// system includes
+
+#include <iostream>     // std::cout
 #include <iomanip>      // std::setprecision
-#include <fstream>
-#include <string>
-#include <sstream>
-#include <vector>
-#include <map>
+#include <fstream>      // fopen
+#include <string>       // std::string
+#include <sstream>      // std::stringstream
+#include <vector>       // std::vector
+#include <map>          // std::map
 #include <unordered_map>
 #include <set>
 #include <typeinfo>
@@ -129,10 +133,14 @@
 typedef BYTE PIXELVALUE;
 #endif
 
+#ifdef WIN32
 
 #define exit(_Code) { if (_Code) { assert(0); std::cout << "Quit..."; std::string s; std::cin.putback('X'); std::cin >> s; exit(_Code); } }
 
-#ifdef WIN32
+SHORT WINAPI GetAsyncKeyState(
+    _In_ int vKey
+    );
+
 #define  LOGCON(...)  { printf(__VA_ARGS__); }
 #define  LOGDEBUG(...)  {	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE); SetConsoleTextAttribute(hConsole, 10); printf(__VA_ARGS__);SetConsoleTextAttribute(hConsole, 7);}
 #define  LOGWARNING(...)  {	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE); SetConsoleTextAttribute(hConsole, 14); printf("WARNING : "); printf(__VA_ARGS__);SetConsoleTextAttribute(hConsole, 7);}
@@ -144,9 +152,3 @@ typedef BYTE PIXELVALUE;
 #define  LOGERROR(...)		{	printf("ERROR : "); printf(__VA_ARGS__);}
 #endif
 
-
-#ifdef WIN32
-SHORT WINAPI GetAsyncKeyState(
-    _In_ int vKey
-    );
-#endif

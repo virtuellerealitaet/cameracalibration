@@ -12,35 +12,256 @@
 #include "ps3eye.h"
 #endif
 
-namespace ps3eye
+#ifdef UNIX
+// boost
+#include <regex>
+#include <boost/filesystem.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/regex.hpp>
+#endif
+
+namespace PS3EYECam
 {
 
 
     class PS3Camera
     {
 
-        PS3Camera()
+    public :
+
+        PS3Camera(std::string deviceName) :
+            _deviceName(deviceName),
+            _initialized(false)
         {
+
+
+
 
         };
 
         ~PS3Camera()
         {
+           release();
 
         };
 
+        bool isOpen() { return _initialized; }
+
+        bool open()
+        {
+            // try to open device
+            _deviceID = getDeviceID(_deviceName); // open camera
+            int apiID = cv::CAP_V4L2;      // choose API
+
+            // open selected camera using selected API
+
+            _camera.open(deviceID + apiID);
+
+            if (_camera.isOpened())
+            {
+                _initialized = true;
+            }
+            else
+                _initialized = false;
+
+            return _initialized;
+        }
+
+        void release()
+        {
+            _camera.release();
+            _initialized = false;
+        }
+
+
+        cv::VideoCapture    _camera;        // frame grabber
+        int                 _deviceID;      // device id
+        std::string         _deviceName;    // device name /dev/videoX
+
+        bool                _initialized;
+
     };
 
+    typedef PS3Camera* PS3EYERef;
 
 
-    static std::vector<PS3Camera> getDevices()
+    static void infoLogger(const std::string& line, std::stringstream &str)
     {
-        std::vector<PS3Camera> devices;
+         //printf ("%s.\n",line.c_str());
+         str << line << std::endl;
+    }
 
-        // check available sony eye camera devices
+    static int LoggedSystem(const std::string& prefix, const std::string& cmd, std::string &output)
+    {
+        std::stringstream str;
+
+        printf ("%s.\n",cmd.c_str());
+
+        FILE* fpipe = popen(cmd.c_str(), "r");
+        if (fpipe == NULL)
+            throw std::runtime_error(std::string("Can't run ") + cmd);
+        char* lineptr;
+        size_t n;
+        ssize_t s;
+        do {
+            lineptr = NULL;
+            s = getline(&lineptr, &n, fpipe);
+            if (s > 0 && lineptr != NULL) {
+                if (lineptr[s - 1] == '\n')
+                    lineptr[--s  ] = 0;
+                if (lineptr[s - 1] == '\r')
+                    lineptr[--s  ] = 0;
+                infoLogger(prefix + lineptr, str);
+            }
+            if (lineptr != NULL)
+                free(lineptr);
+        } while (s > 0);
+        int status = pclose(fpipe);
+
+        //infoLogger(std::to_string(status), str);
+
+        output = str.str();
+
+        return status;
+    }
+
+    static int getSonyEyeDevices(std::vector<std::string> &sonyEyeDevices)
+    {
+
+        // get all devices registered by video4linux
+        std::string v4lDevices;
+        std::string basePath = "/dev/v4l/by-path/";
+        LoggedSystem ("","ls "+basePath, v4lDevices);
+        std::vector<std::string> devices;
+        boost::split(devices,v4lDevices,boost::is_any_of("\n"));
 
 
+        // filter for sony eye cam
+        for (int i = 0 ; i < (int)devices.size(); i++)
+        {
+            //printf("checking %s\n", devices[i].c_str());
 
+            if (devices[i].length() > 0)
+            {
+                // get device name from v4l path
+                boost::filesystem::path path( basePath + devices[i]);
+                std::string canonicalDevice = boost::filesystem::canonical(path).string();
+
+                // query camera information using udevadm
+                std::string cmd("udevadm info --query=all --name=");
+                cmd.append(canonicalDevice);
+                std::string deviceInfo;
+                LoggedSystem ("", cmd, deviceInfo);
+
+                // split return info
+                std::vector<std::string> deviceInfoLines;
+                boost::split(deviceInfoLines,deviceInfo,boost::is_any_of("\n"));
+
+                // check line by line for ID_SERIAL info containing specific sony eye title
+                for (auto s : deviceInfoLines)
+                {
+                    // check id serial for omnivision camera (sony eye 3)
+                    std::string devicename = boost::algorithm::to_lower_copy(s);
+                    if (boost::algorithm::ifind_first(devicename,"id_serial=omnivision"))
+                    {
+                        // add sony eye to to device list
+                        sonyEyeDevices.push_back(canonicalDevice);
+                        break;
+                    }
+                }
+            }
+        }
+
+        int deviceID = 0;
+        for (auto s : sonyEyeDevices)
+        {
+            printf("sony eye cam %d : %s\n", deviceID, s.c_str());
+            deviceID++;
+        }
+
+        return sonyEyeDevices.size();
+
+    }
+
+    static int getDeviceID(std::string resource)
+    {
+
+      const char * pattern = "\\d+";
+
+      boost::regex re(pattern);
+
+      boost::sregex_iterator it(resource.begin(), resource.end(), re);
+      boost::sregex_iterator end;
+
+      for( ; it != end; ++it)
+      {
+          std::cout<< it->str() <<"\n";
+          return atoi(it->str().c_str());
+
+      }
+
+      return 0;
+
+    }
+
+//    static bool checkDeviceAvailability(int deviceID)
+//    {
+
+
+//        if (numSonyEyeCameras == 0)
+//            return false;
+
+//    }
+
+    static std::vector<std::string> deviceNames;
+    static int numSonyEyeCameras = 0;
+    static std::vector<PS3Camera> sonyEyeCams;
+
+    static bool setupDevices()
+    {
+        numSonyEyeCameras = getSonyEyeDevices(deviceNames);
+
+        if (numSonyEyeCameras == 0)
+        {
+            printf("No sony eye camera found! Exiting...\n");
+        }
+
+        // create sony eye camera for each camera
+        for (int i = 0; i < numSonyEyeCameras; i++)
+        {
+            PS3Camera cam(deviceNames[i]);
+            if (cam.initialize())
+                sonyEyeCams.push_back(cam);
+            else
+            {
+                printf("Camera %s could not be initialized.\n", deviceNames[i]);
+            }
+        }
+
+        if (sonyEyeCams.size() == numSonyEyeCameras)
+            return true;
+
+        else
+        {
+            // release cameras due to error
+            for (auto c : sonyEyeCams)
+                c.release();
+            sonyEyeCams.clear();
+        }
+
+        return false;
+
+    }
+
+    static std::vector<*PS3Camera> getDevices()
+    {
+        std::vector<*PS3Camera> devices;
+        for (int c = 0; c < sonyEyeCams.size(); c++ )
+        {
+            PS3Camera *cam = sonyEyeCams[i];
+            devices.push_back(cam);
+        }
+        return devices;
     }
 
 
@@ -206,7 +427,8 @@ private:
         #endif
 
         #ifdef UNIX
-        std::vector<PS3EYECam::PS3EYERef> devices(PS3EYECam::getDevices());
+        //std::vector<PS3EYECam::PS3EYERef> devices(PS3EYECam::getDevices());
+        std::vector<*PS3Camera> = PS3EYECam::getDevices();
         #endif
 
 		LOGCON("Found %d cameras.\n", (int)devices.size());
@@ -324,7 +546,13 @@ private:
 	uint8_t	*frame_bgr;
 	cv::Mat _latestCamFrame;
 
+#ifdef WIN32
 	ps3eye::PS3EYECam::PS3EYERef _cameraPtr;
+#endif
+#ifdef UNIX
+    PS3EYECam::PS3EYERef _cameraPtr;
+#endif
+
 	unsigned int	_deviceID;
 
 	cv::Point2i		_resolution;

@@ -71,7 +71,8 @@ endif()
 # ========================================================================================= SOURCES
 
 set(simplecamsource
-  src/simplecam.cpp)
+  src/simplecam.cpp
+  src/stdafx.cpp)
 
 set(cameraviewersource
   src/cameraviewer.cpp
@@ -104,6 +105,11 @@ set(stereosource
   src/stdafx.cpp)
   
 # ========================================================================================= HEADERS
+
+set(simplecamheader
+  include/Camera.h
+  include/ThreadCamera.h
+  include/stdafx.h)
 
 set(cameraviewerheader
   include/Camera.h
@@ -178,7 +184,7 @@ endif()
 
 if(UNIX)
 
-add_executable(simplecam ${simplecamsource})
+add_executable(simplecam ${simplecamsource} ${simplecamheader})
 
 #add_executable(cameraviewer ${cameraviewersource} ${cameraviewerheader})
 

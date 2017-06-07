@@ -1,3 +1,7 @@
+
+#include "stdafx.h"
+
+
 // qt includes
 #include <QApplication>
 
@@ -24,7 +28,6 @@ void infoLogger(const std::string& line, std::stringstream &str)
      //printf ("%s.\n",line.c_str());
      str << line << std::endl;
 }
-
 
 int LoggedSystem(const std::string& prefix, const std::string& cmd, std::string &output)
 {
@@ -59,7 +62,6 @@ int LoggedSystem(const std::string& prefix, const std::string& cmd, std::string 
 
     return status;
 }
-
 
 int countNumSonyEye(std::vector<std::string> &sonyEyeDevices)
 {
@@ -180,6 +182,7 @@ int main(int argc, char *argv[])
         LoggedSystem("", v4cl2cmd + "-c exposure=255",output); // [0,255]
 
         //std::this_thread::sleep_for (std::chrono::seconds(1));
+
 
 
         //cap.set(CV_CAP_PROP_AUTO_EXPOSURE, 0);
