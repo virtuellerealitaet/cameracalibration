@@ -39,6 +39,11 @@ bool startCameras()
 
     std::vector<PS3EYECam::PS3EYERef> devices = PS3EYECam::getDevices();
 
+    if (devices.size() < NUM_CAMERAS)
+    {
+        printf("Not enough cameras to start program. Exiting..\n");
+        return false;
+    }
 
 
     // load an image
@@ -113,8 +118,8 @@ bool stopCameras()
 int main(int argc, char *argv[])
 {
 
-    startCameras();
-    //return 0;
+    if (!startCameras())
+        return 0;
 
     std::vector<std::string> windowNames;
 

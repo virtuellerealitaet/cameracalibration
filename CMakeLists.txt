@@ -40,7 +40,7 @@ if (UNIX)
   # Qt
   find_package(Qt5Widgets)
   find_package(Qt5Core)
-  #find_package(Qt5 5.0 COMPONENTS widgets core REQUIRED)
+  #find_package(Qt5a 5.9 COMPONENTS widgets core REQUIRED)
 
 
 
