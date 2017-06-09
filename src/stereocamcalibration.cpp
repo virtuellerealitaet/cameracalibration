@@ -6,7 +6,7 @@
 // 
 // 	implementation based on BOOK: Learning OpenCV: Computer Vision with the OpenCV Library
 //  by Gary Bradski and Adrian Kaehler
-//  Published by O'Reilly Media, October 3, 2008
+//  Published by O'Reilly Media
 //
 // *******************************************************************
 
@@ -14,12 +14,10 @@
 
 #include "ThreadCamera.h"
 
+#include <iterator>
+
 using namespace cv;
 using namespace std;
-
-SHORT WINAPI GetAsyncKeyState(
-	_In_ int vKey
-	);
 
 // ***************************************************
 // CAMERA DATA
@@ -67,6 +65,23 @@ static Mat img_r, rimg_r, cimg_r;
 
 static Mat canvasPart_left;
 static Mat canvasPart_right;
+
+const char * usage =
+" \nexample command line for stereo calibration from camera feed.\n"
+"   stereocamcalibration -calibrate\n"
+" \n"
+" example command line for checking calibration:\n"
+"   stereocamcalibration -verify\n";
+
+static void help()
+{
+	printf("\nStereo camera calibration using OpenCV\n"
+		"Usage:\n"
+		"     -verify                  # rectify camera data using calibration provided in the application path\n"
+		"     -calibrate               # create new calibration using a 9x6 checkerboard pattern\n"
+		"\n");
+	printf("\n%s", usage);
+}
 
 bool startCameras()
 {
@@ -180,7 +195,8 @@ void checkCameraFrames(vector<Point2f> &corners_left, vector<Point2f> &corners_r
 	return;
 }
 
-static void StereoCalibOnline() {
+static void StereoCalibOnline()
+{
 
 	// *******************************************************************************
 	// INITIALIZATION
@@ -220,7 +236,9 @@ static void StereoCalibOnline() {
 
 		if (corners_left.size() > 0 && corners_right.size() > 0) {
 
-			if (GetAsyncKeyState('C') & 0x8000) {
+			char c = cvWaitKey(1);
+			if (c == 'c' || c == 'C')
+			{
 				numsamples++;
 				imagePoints[0].push_back(corners_left);
 				imagePoints[1].push_back(corners_right);
@@ -532,6 +550,30 @@ static bool rectifyCameraImages() {
 int main(int argc, char** argv)
 {
 
+	if (argc < 2)
+	{
+		help();
+		return 0;
+	}
+
+	bool performNewCalibration = false;
+
+	for (int i = 1; i < argc; i++)
+	{
+		const char* s = argv[i];
+		if (strcmp(s, "-verify") == 0)
+		{
+			performNewCalibration = false;
+		}
+		else if (strcmp(s, "-calibrate") == 0)
+		{
+			performNewCalibration = true;
+		}
+		else
+			return fprintf(stderr, "Unknown option %s", s), -1;
+	}
+
+
 	// start cameras
 	if (!startCameras()) {
 		cout << "Exiting.";
@@ -539,7 +581,12 @@ int main(int argc, char** argv)
 	}
 	
 	// read rectification information
-	if (!readCalibration()) {
+	if (performNewCalibration)
+	{
+		StereoCalibOnline();// perform stereo calibration
+	}
+	else if (!readCalibration())
+	{
 		cout << "no calibration existing or not readable. perform new calibration ? ('Y' / 'N' )";
 		char c; cin >> c;
 		if (c == 'y' || c == 'Y')
@@ -559,10 +606,10 @@ int main(int argc, char** argv)
 
 		rectifyCameraImages();
 
-		if ((GetAsyncKeyState('C') & 0x8000 || GetAsyncKeyState('c') & 0x8000)
-			&& GetAsyncKeyState(VK_CONTROL) & 0x8000
-			&& GetAsyncKeyState(VK_SHIFT) & 0x8000
-			) {
+		// calibrate on keyboard input
+		char c = cvWaitKey(1);
+		if (c == 'c' || c == 'C')
+		{
 			cout << "run calibration" << endl;
 			destroyAllWindows();
 

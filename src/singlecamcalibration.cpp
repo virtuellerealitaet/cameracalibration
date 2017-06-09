@@ -1,7 +1,9 @@
-/*****************************************************************************
-* Application :		Camera Calibration Application
-*					using OpenCV3 (http://opencv.org/)
-*					and PS3EYEDriver C API Interface (by Thomas Perl)
+/****************************************************************************************
+* Application :	Single Camera Calibration Application using
+*
+*					-OpenCV3 (http://opencv.org/) and
+*					-PS3EYEDriver C API Interface (by Thomas Perl) for Windows build
+*					-Video4Linux2 for Linux build
 *
 * Author      :		Michael Stengel <virtuellerealitaet@gmail.com>
 *
@@ -28,22 +30,21 @@
 * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 * POSSIBILITY OF SUCH DAMAGE.
-**/
-
-
-//#define CALIBRATION_DEFAULT
-
-#ifdef CALIBRATION_DEFAULT
+***************************************************************************************/
 
 #include <stdafx.h>
 #include "ThreadCamera.h"
+
+#undef min
+#undef max
+#include <algorithm>
 
 using namespace cv;
 using namespace std;
 
 const char * usage =
 " \nexample command line for calibration from a live feed.\n"
-"   calibration  -w 4 -h 5 -s 0.025 -o camera.yml -op -oe\n"
+"   singlecamcalibration.exe -useSonyEye -w 9 -h 6 -pt chessboard -n 15 -d 2000 -o mycam -op -oe\n"
 " \n"
 " example command line for calibration from a list of stored images:\n"
 "   imagelist_creator image_list.xml *.png\n"
@@ -75,8 +76,9 @@ const char* liveCaptureHelp =
 
 static void help()
 {
-    printf( "This is a camera calibration sample.\n"
-        "Usage: calibration\n"
+    printf( "Single camera calibration using OpenCV\n"
+        "Usage:\n"
+		"     -useSonyEye              # use sony eye camera instead of default camera\n"
         "     -w <board_width>         # the number of inner corners per one of board dimension\n"
         "     -h <board_height>        # the number of inner corners per another board dimension\n"
         "     [-pt <pattern>]          # the type of pattern: chessboard or circles' grid\n"
@@ -469,7 +471,11 @@ int main( int argc, char** argv )
     
 	if (useEyeCam)
 	{
-		if (!pseye->initialize(0,320,240,3,60))
+		int camwidth = 640;
+		int camheight = 480;
+		int framerate = 60;
+
+		if (!pseye->initialize(0, camwidth, camheight,3, framerate))
 			return fprintf(stderr, "Could not initialize Sony Eye Cam ! \n"), -2;
 		else
 		{
@@ -684,4 +690,3 @@ int main( int argc, char** argv )
     return 0;
 }
 
-#endif
