@@ -101,7 +101,7 @@ bool startCameras()
 	// create and initialize two sony ps3 eye cameras
 	VidCapLeft = new ThreadCamera();
 	VidCapRight = new ThreadCamera();
-	bool success = (VidCapLeft->initialize(0,640,480,3,60) && VidCapRight->initialize(1,640, 480, 3, 60));
+	bool success = (VidCapLeft->initialize(0,640,480,3,30) && VidCapRight->initialize(1,640, 480, 3, 60));
 
 	// adjust camera settings
 	if (success)
@@ -189,7 +189,7 @@ void checkCameraFrames(vector<Point2f> &corners_left, vector<Point2f> &corners_r
 	}
 
 	// show combined visualization image
-	imshow("stereo camera feed", combined);
+	imshow("Stereo calibration : camera feed", combined);
 	waitKey(1);
 	
 	return;
@@ -248,8 +248,10 @@ static void StereoCalibOnline()
 				imgSamplesRight.push_back(right);
 
 				std::cout << "sample " << numsamples << " recorded. " << nimages - numsamples << " to go..." << std::endl;
-				Sleep(100);
+				Sleep(1000);
 			}
+			else if (c == 'q' || c == 'Q')
+				return;
 		}
 
 	} while (numsamples < nimages);
@@ -540,7 +542,7 @@ static bool rectifyCameraImages() {
 	for (int j = 0; j < canvas.rows; j += 16)
 		line(canvas, Point(0, j), Point(canvas.cols, j), Scalar(0, 255, 0), 1, 8);
 
-	imshow("rectified", canvas);
+	imshow("Stereo calibration : verification of rectified images", canvas);
 	waitKey(1);
 
 	return true;
@@ -616,15 +618,21 @@ int main(int argc, char** argv)
 			// perform stereo calibration
 			StereoCalibOnline();
 		}
+		else if (c == 'q' || c == 'Q')
+			break;
 
-		Sleep(5);
+		//Sleep(5);
 	}
 
-
+	std::cout << "\nCamera loop stopped.\n\n";
+	std::cout << "Disconnecting cameras ...\n";
 
 	// deinitialize both cameras	
 	VidCapLeft->deinitialize();
 	VidCapRight->deinitialize();
+
+	cv::destroyAllWindows();
+	std::cout << "done.\n\nRegular program exit.\n" << std::endl;
 
 	// run validation by image rectification
 	return 0;

@@ -824,8 +824,8 @@ public:
         uint8_t contrast        = _cameraPtr->getContrast();
         uint8_t sharpness       = _cameraPtr->getSharpness();
 
-        bool flipVertical       = _cameraPtr->getFlipV();
-        bool flipHorizontal     = _cameraPtr->getFlipH();
+        bool flipVertically = _cameraPtr->getFlipV();
+        bool flipHorizontally = _cameraPtr->getFlipH();
 
         bool autoGain           = _cameraPtr->getAutogain();
         bool autoWhiteBalance   = _cameraPtr->getAutoWhiteBalance();
@@ -862,6 +862,16 @@ public:
 		if (autoWhiteBalance != _autowhitebalance) {
 			_cameraPtr->setAutoWhiteBalance(_autowhitebalance);
 			LOGCON("Setting autoWhiteBalance to %d\n", _autowhitebalance);
+		}
+
+		if (flipHorizontally != _flipHorizontally) {
+			_cameraPtr->setFlip(_flipHorizontally, _flipVertically);
+			LOGCON("Setting horizontal flip to %d\n", _flipHorizontally);
+		}
+
+		if (flipVertically != _flipVertically) {
+			_cameraPtr->setFlip(_flipHorizontally, _flipVertically);
+			LOGCON("Setting vertical flip to %d\n", _flipVertically);
 		}
 
 	}

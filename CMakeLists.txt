@@ -195,13 +195,37 @@ if(UNIX)
 	  Qt5::Core
 	  ${Boost_LIBRARIES}
 	  pthread
-	  #SDL2
-	  #readline
+	  )
+	  
+	add_executable(multicamwriter ${multicamwritersource} ${multicamwriterheader})
+
+	target_link_libraries(multicamwriter
+	  ${OpenCV_LIBS}
+	  Qt5::Widgets
+	  Qt5::Core
+	  ${Boost_LIBRARIES}
+	  pthread
+	  )
+	  
+	add_executable(singlecamcalibration ${singlecamcalibsource} ${singlecamcalibheader})
+
+	target_link_libraries(singlecamcalibration
+	  ${OpenCV_LIBS}
+	  Qt5::Widgets
+	  Qt5::Core
+	  ${Boost_LIBRARIES}
+	  pthread
 	  )
 
+	add_executable(stereocamcalibration ${stereocamcalibsource} ${stereocamcalibheader})
 
-	#APR_ONLY_LIBS = -lapr-1 -lpthread
-
+	target_link_libraries(stereocamcalibration
+	  ${OpenCV_LIBS}
+	  Qt5::Widgets
+	  Qt5::Core
+	  ${Boost_LIBRARIES}
+	  pthread
+	  )
 
 	add_definitions(-DUNIX)
 
