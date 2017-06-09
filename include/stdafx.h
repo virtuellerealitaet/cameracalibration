@@ -124,9 +124,10 @@
 //#include <stdio.h>
 //#include <stdlib.h>
 //#include <ctype.h>
+#include <thread>
 
 // OpenCV
-#include <opencv2\opencv.hpp>
+#include <opencv2/opencv.hpp>
 
 typedef uint8_t PIXELVALUE;
 
@@ -145,3 +146,7 @@ typedef uint8_t PIXELVALUE;
 #define  LOGERROR(...)		{	printf("ERROR : "); printf(__VA_ARGS__);}
 #endif
 
+static void Sleep(int milliseconds)
+{
+    std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
+}

@@ -41,15 +41,26 @@ static void cameracallback(cv::Mat frame, void *userdata)
 
 	frame.copyTo(current_frame[camIndex]);
 	newframe[camIndex] = true;
+
+    //std::cout << "new frame from cam " << camIndex << std::endl;
 }
 
 bool startCameras()
 {
 
-	// list out the devices
-	using namespace ps3eye;
-	std::vector<PS3EYECam::PS3EYERef> devices(PS3EYECam::getDevices());
-	LOGCON("Found %d cameras.\n", (int)devices.size());
+#ifdef UNIX
+    if (!PS3EYECam::setupDevices())
+    {
+        printf("Initialization of Sony Eye Cam(s) failed. Exiting..\n");
+        return 0;
+    }
+#endif
+
+#ifdef WIN32
+    using namespace ps3eye;
+#endif
+
+    std::vector<PS3EYECam::PS3EYERef> devices = PS3EYECam::getDevices();
 
 	numDetectedCameras = devices.size();
 
@@ -65,30 +76,34 @@ bool startCameras()
 		VidCapCam[camIdx] = new ThreadCamera();
 
 		VidCapCam[camIdx]->setCallback(cameracallback, (void*)camIdx);
-				
-		int camera_width = 640;
-		int camera_height = 480;
-		float camera_fps = 30;
+
+        Sleep(200);
+
+        int camera_width = 640;
+        int camera_height = 480;
+        int camera_fps = 30;
 
 		// init cam 0 and cam 1 using VGA@30Hz
-		//float camera_fps = 125;
+        //int camera_fps = 125;
 		//int camera_width = 320;
 		//int camera_height = 240;
 
-		//float camera_fps = 195;
+        //int camera_fps = 195;
 		//int camera_width = 320;
 		//int camera_height = 240;
 				
 		//if (camIdx >= 1) // init cam 2 and cam 3 using QVGA@100Hz
 		//{
-		//	camera_fps = 100.0;
-		//	camera_width = 320;
-		//	camera_height = 240;
+        //    camera_fps = 30;
+        //    camera_width = 320;
+        //    camera_height = 240;
 		//}
 		
 		// init cameras and adjust camera settings
 		bool success = VidCapCam[camIdx]->initialize(camIdx, camera_width, camera_height, 3, camera_fps);
 		
+        Sleep(200);
+
 		if (!success) // break if initialization fails
 			return false;
 	}
@@ -96,17 +111,19 @@ bool startCameras()
 	{
 		VidCapCam[camIdx]->startCapture();
 		
-		Sleep(500);
+        Sleep(200);
 		
-		VidCapCam[camIdx]->_autogain = true;
+        VidCapCam[camIdx]->_autogain = false;
 		VidCapCam[camIdx]->_autowhitebalance = true;
-		VidCapCam[camIdx]->_flipVertically = true;
-		VidCapCam[camIdx]->_exposure = 50.f;
+        //VidCapCam[camIdx]->_flipVertically = true;
+        VidCapCam[camIdx]->_exposure = 150.f;
 		VidCapCam[camIdx]->updateCameraSettings();
 
-		Sleep(500);
+        Sleep(200);
 		
 	}
+
+
 	
 
 	return true;
@@ -154,6 +171,8 @@ int main(int argc, char** argv)
 		roi[camIdx] = combined(Rect(currentX, 0, VidCapCam[camIdx]->getCameraWidth(), VidCapCam[camIdx]->getCameraHeight()));
 		currentX += VidCapCam[camIdx]->getCameraWidth();
 	}
+
+    cv::waitKey(0);
 	
 	long long startTime = chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now().time_since_epoch()).count();
 	int writeInterval = 1000.0 / writeFPS;
@@ -167,44 +186,35 @@ int main(int argc, char** argv)
 	bool stop = false;
 	while (!stop)
 	{
-		{
 			
-			if (writeFrames)
-			{
-				long long now = chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now().time_since_epoch()).count();
-				long long milliSecondsPassed = now - startTime;
+        // fill region of interests in combined frame
+        for (int camIdx = 0; camIdx < numDetectedCameras; camIdx++)
+        {
+            if (current_frame[camIdx].size().area() > 0)
+            {
+                current_frame[camIdx].copyTo(roi[camIdx]);
+            }
+        }
 
-				if (milliSecondsPassed >= writeInterval)
-				{
-					startTime = now;
 
-					// fill region of interests in combined frame
-					for (int camIdx = 0; camIdx < numDetectedCameras; camIdx++)
-						current_frame[camIdx].copyTo(roi[camIdx]);
+        if (writeFrames)
+        {
+            long long now = chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now().time_since_epoch()).count();
+            long long milliSecondsPassed = now - startTime;
 
-					// reset camera frame status
-					for (int camIdx = 0; camIdx < numDetectedCameras; camIdx++)
-						newframe[camIdx] = false;
+            if (milliSecondsPassed >= writeInterval)
+            {
+                startTime = now;
 
-					// write frame using video writer
-					writer << combined;
-	
-					std::this_thread::sleep_for(std::chrono::milliseconds(max(0, writeInterval - 1)));
+                // write frame using video writer
+                writer << combined;
 
-				}
-			}
-			//else
-			{
+                std::this_thread::sleep_for(std::chrono::milliseconds(max(0, writeInterval - 1)));
 
-				// fill region of interests in combined frame
-				for (int camIdx = 0; camIdx < numDetectedCameras; camIdx++)
-					current_frame[camIdx].copyTo(roi[camIdx]);
+            }
+        }
 
-				imshow("combined", combined);
-				waitKey(1);
-
-			}
-		}
+        imshow("combined", combined);
 
 		// quite program on keyboard input
 		char c = cvWaitKey(1);

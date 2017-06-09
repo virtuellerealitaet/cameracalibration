@@ -66,6 +66,8 @@ static Mat img_r, rimg_r, cimg_r;
 static Mat canvasPart_left;
 static Mat canvasPart_right;
 
+static bool switchCameras = false;
+
 const char * usage =
 " \nexample command line for stereo calibration from camera feed.\n"
 "   stereocamcalibration -calibrate\n"
@@ -79,6 +81,7 @@ static void help()
 		"Usage:\n"
 		"     -verify                  # rectify camera data using calibration provided in the application path\n"
 		"     -calibrate               # create new calibration using a 9x6 checkerboard pattern\n"
+        "     -sw                      # switch cameras\n"
 		"\n");
 	printf("\n%s", usage);
 }
@@ -86,10 +89,25 @@ static void help()
 bool startCameras()
 {
 
-	// list out the devices
-	using namespace ps3eye;
-	std::vector<PS3EYECam::PS3EYERef> devices(PS3EYECam::getDevices());
-	LOGCON("Found %d cameras.\n", (int)devices.size());
+#ifdef UNIX
+    if (!PS3EYECam::setupDevices())
+    {
+        printf("Initialization of Sony Eye Cam(s) failed. Exiting..\n");
+        return 0;
+    }
+#endif
+
+#ifdef WIN32
+    using namespace ps3eye;
+#endif
+
+    std::vector<PS3EYECam::PS3EYERef> devices = PS3EYECam::getDevices();
+
+    if (devices.size() < 1)
+    {
+        printf("No sony eye cam connected ! Exiting..\n");
+        return false;
+    }
 
 	int numCams = (int)devices.size();
 
@@ -101,7 +119,20 @@ bool startCameras()
 	// create and initialize two sony ps3 eye cameras
 	VidCapLeft = new ThreadCamera();
 	VidCapRight = new ThreadCamera();
-	bool success = (VidCapLeft->initialize(0,640,480,3,30) && VidCapRight->initialize(1,640, 480, 3, 60));
+
+
+    int cam0Index = 0;
+    int cam1Index = 1;
+
+    if (switchCameras)
+    {
+        int tempIndex = cam1Index;
+        cam1Index = cam0Index;
+        cam0Index = tempIndex;
+    }
+
+    bool success = (VidCapLeft->initialize(cam0Index,640,480,3,60) && VidCapRight->initialize(cam1Index,640, 480, 3, 60));
+
 
 	// adjust camera settings
 	if (success)
@@ -109,26 +140,26 @@ bool startCameras()
 
 		VidCapLeft->startCapture();
 
-		Sleep(500);
+        Sleep(50);
 
 		VidCapLeft->_autogain = true;
 		VidCapLeft->_autowhitebalance = true;
 		VidCapLeft->_flipVertically = true;
 		VidCapLeft->updateCameraSettings();
 
-		Sleep(500);
+        Sleep(50);
 
 		VidCapRight->startCapture();
 
-		Sleep(500);
+        Sleep(50);
 
 		VidCapRight->_autogain = true;
 		VidCapRight->_autowhitebalance = true;
 		VidCapRight->_flipHorizontally = true;
 		VidCapRight->updateCameraSettings();
 
-		Sleep(500);
-	}
+        Sleep(50);
+    }
 
 	return success;
 }
@@ -571,6 +602,10 @@ int main(int argc, char** argv)
 		{
 			performNewCalibration = true;
 		}
+        else if (strcmp(s, "-sw") == 0)
+        {
+            switchCameras = true;
+        }
 		else
 			return fprintf(stderr, "Unknown option %s", s), -1;
 	}

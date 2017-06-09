@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 project(cameracalibration)
 
-
 # =========================================================================================
 # OPTIONS
 # =========================================================================================
@@ -188,7 +187,7 @@ endif()
 if(UNIX)
 
 	add_executable(multicamviewer ${multicamviewersource} ${multicamviewerheader})
-
+        #set_target_properties(multicamviewer PROPERTIES LINKER_LANGUAGE CXX)
 	target_link_libraries(multicamviewer
 	  ${OpenCV_LIBS}
 	  Qt5::Widgets
@@ -197,35 +196,35 @@ if(UNIX)
 	  pthread
 	  )
 	  
-	add_executable(multicamwriter ${multicamwritersource} ${multicamwriterheader})
+        add_executable(multicamwriter ${multicamwritersource} ${multicamwriterheader})
 
-	target_link_libraries(multicamwriter
-	  ${OpenCV_LIBS}
-	  Qt5::Widgets
-	  Qt5::Core
-	  ${Boost_LIBRARIES}
-	  pthread
-	  )
+        target_link_libraries(multicamwriter
+          ${OpenCV_LIBS}
+          Qt5::Widgets
+          Qt5::Core
+          ${Boost_LIBRARIES}
+          pthread
+          )
 	  
-	add_executable(singlecamcalibration ${singlecamcalibsource} ${singlecamcalibheader})
+        add_executable(singlecamcalibration ${singlecamcalibsource} ${singlecamcalibheader})
 
-	target_link_libraries(singlecamcalibration
-	  ${OpenCV_LIBS}
-	  Qt5::Widgets
-	  Qt5::Core
-	  ${Boost_LIBRARIES}
-	  pthread
-	  )
+        target_link_libraries(singlecamcalibration
+          ${OpenCV_LIBS}
+          Qt5::Widgets
+          Qt5::Core
+          ${Boost_LIBRARIES}
+          pthread
+          )
 
-	add_executable(stereocamcalibration ${stereocamcalibsource} ${stereocamcalibheader})
+        add_executable(stereocamcalibration ${stereocamcalibsource} ${stereocamcalibheader})
 
-	target_link_libraries(stereocamcalibration
-	  ${OpenCV_LIBS}
-	  Qt5::Widgets
-	  Qt5::Core
-	  ${Boost_LIBRARIES}
-	  pthread
-	  )
+        target_link_libraries(stereocamcalibration
+          ${OpenCV_LIBS}
+          Qt5::Widgets
+          Qt5::Core
+          ${Boost_LIBRARIES}
+          pthread
+          )
 
 	add_definitions(-DUNIX)
 

@@ -31,10 +31,52 @@ namespace PS3EYECam
     };
 
 
+    static void infoLogger(const std::string& line, std::stringstream &str)
+    {
+         //printf ("%s.\n",line.c_str());
+         str << line << std::endl;
+    }
+
+    static int LoggedSystem(const std::string& prefix, const std::string& cmd, std::string &output)
+    {
+        std::stringstream str;
+
+        printf ("%s.\n",cmd.c_str());
+
+        FILE* fpipe = popen(cmd.c_str(), "r");
+        if (fpipe == NULL)
+            throw std::runtime_error(std::string("Can't run ") + cmd);
+        char* lineptr;
+        size_t n;
+        ssize_t s;
+        do {
+            lineptr = NULL;
+            s = getline(&lineptr, &n, fpipe);
+            if (s > 0 && lineptr != NULL) {
+                if (lineptr[s - 1] == '\n')
+                    lineptr[--s  ] = 0;
+                if (lineptr[s - 1] == '\r')
+                    lineptr[--s  ] = 0;
+                infoLogger(prefix + lineptr, str);
+            }
+            if (lineptr != NULL)
+                free(lineptr);
+        } while (s > 0);
+        int status = pclose(fpipe);
+
+        //infoLogger(std::to_string(status), str);
+
+        output = str.str();
+
+        return status;
+    }
+
+
     class PS3Camera
     {
 
         int apiID;
+        std::string v4cl2cmd;
 
     public :
 
@@ -43,6 +85,7 @@ namespace PS3EYECam
             _initialized(false)
         {
 
+            v4cl2cmd = "v4l2-ctl -d " + deviceName + " ";
             apiID = cv::CAP_V4L2;      // choose API
 
         };
@@ -213,15 +256,23 @@ namespace PS3EYECam
         uint8_t getAutogain() { return _autogain;}
         uint8_t getAutoExposure() { return _autoexposure;}
         uint8_t getAutoWhiteBalance() { return _autowhitebalance;}
-        uint8_t getFlipV() { return _flipV;}
-        uint8_t getFlipH() { return _flipH;}
+        bool    getFlipV() { return _flipV;}
+        bool    getFlipH() { return _flipH;}
 
         void setExposure(uint8_t exposure) {
             _exposure = exposure;
+
+            std::string output;
+            LoggedSystem("", v4cl2cmd + "-c exposure=" + std::to_string(_exposure),output); // [0,255]
+            std::cout << output << std::endl;
         }
 
         void setGain(uint8_t gain) {
             _gain = gain;
+
+            std::string output;
+            LoggedSystem("", v4cl2cmd + "-c gain=" + std::to_string(_gain),output); // [0,63]
+            std::cout << output << std::endl;
         }
 
         void setContrast(uint8_t contrast) {
@@ -234,26 +285,44 @@ namespace PS3EYECam
 
         void setSharpness(uint8_t sharpness) {
             _sharpness = sharpness;
+
+            std::string output;
+            LoggedSystem("", v4cl2cmd + "-c sharpness=" + std::to_string(_sharpness),output); // [0,63]
+            std::cout << output << std::endl;
         }
 
         void setAutogain(uint8_t autogain) {
             _autogain = autogain;
+
+            std::string output;
+            LoggedSystem("", v4cl2cmd + "-c gain_automatic=" + std::to_string(_autogain),output); // [0,1]
+            std::cout << output << std::endl;
         }
 
         void setAutoExposure(uint8_t autoexposure) {
             _autoexposure = autoexposure;
+
+            std::string output;
+            LoggedSystem("", v4cl2cmd + "-c auto_exposure=" + std::to_string(_autoexposure),output); // 1 is manual exposure
+            std::cout << output << std::endl;
         }
 
         void setAutoWhiteBalance(uint8_t autowhitebalance) {
             _autowhitebalance = autowhitebalance;
+
+
         }
 
-        void setFlipV(uint8_t flipv) {
-            _flipV = flipv;
-        }
+        void setFlip(bool flipHorizontal, bool flipVertical) {
+            _flipV = flipVertical;
+            _flipH = flipHorizontal;
 
-        void setFlipH(uint8_t fliph) {
-            _flipH = fliph;
+            std::string output;
+            LoggedSystem("", v4cl2cmd + "-c horizontal_flip=" + std::to_string(_flipH),output); // [0,1]
+            std::cout << output << std::endl;
+            LoggedSystem("", v4cl2cmd + "-c vertical_flip=" + std::to_string(_flipV),output); // [0,1]
+            std::cout << output << std::endl;
+
         }
 
         uint getWidth() { return _width;}
@@ -286,53 +355,14 @@ namespace PS3EYECam
         uint8_t _autoexposure;
         uint8_t _autowhitebalance;
         uint8_t _autogain;
-        uint8_t _flipV;
-        uint8_t _flipH;
+        bool    _flipV;
+        bool    _flipH;
 
     };
 
     typedef PS3Camera* PS3EYERef;
 
 
-    static void infoLogger(const std::string& line, std::stringstream &str)
-    {
-         //printf ("%s.\n",line.c_str());
-         str << line << std::endl;
-    }
-
-    static int LoggedSystem(const std::string& prefix, const std::string& cmd, std::string &output)
-    {
-        std::stringstream str;
-
-        printf ("%s.\n",cmd.c_str());
-
-        FILE* fpipe = popen(cmd.c_str(), "r");
-        if (fpipe == NULL)
-            throw std::runtime_error(std::string("Can't run ") + cmd);
-        char* lineptr;
-        size_t n;
-        ssize_t s;
-        do {
-            lineptr = NULL;
-            s = getline(&lineptr, &n, fpipe);
-            if (s > 0 && lineptr != NULL) {
-                if (lineptr[s - 1] == '\n')
-                    lineptr[--s  ] = 0;
-                if (lineptr[s - 1] == '\r')
-                    lineptr[--s  ] = 0;
-                infoLogger(prefix + lineptr, str);
-            }
-            if (lineptr != NULL)
-                free(lineptr);
-        } while (s > 0);
-        int status = pclose(fpipe);
-
-        //infoLogger(std::to_string(status), str);
-
-        output = str.str();
-
-        return status;
-    }
 
     static int getSonyEyeDevices(std::vector<std::string> &sonyEyeDevices)
     {
