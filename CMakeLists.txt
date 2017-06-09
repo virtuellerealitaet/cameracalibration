@@ -27,21 +27,41 @@ set(lib_dir ${CMAKE_SOURCE_DIR}/lib)
 # OS-specific library configuration
 if (UNIX)
 
-  # OPENCV
+  #OpenCV
   find_package(OpenCV 3.2 COMPONENTS highgui core imgcodecs imgproc features2d calib3d videoio REQUIRED)
-  #set(OpenCV_INCLUDES /usr/local/include)
-  #set(OpenCV_LIBS opencv_core opencv_highgui)
+  if (OpenCV_FOUND)
+    MESSAGE(${OpenCV_LIBS})
+  endif()
 
-  # Boost
-  #find_package(Boost)
+  #Boost
   find_package(Boost 1.58 COMPONENTS program_options system filesystem regex REQUIRED)
+  if (Boost_FOUND)
+      MESSAGE("BOOST FOUND")
+      MESSAGE(${Boost_INCLUDE_DIR})
+      MESSAGE(${Boost_LIBRARIES})
+  endif()
 
 
   # Qt
   find_package(Qt5Widgets)
   find_package(Qt5Core)
-  #find_package(Qt5a 5.9 COMPONENTS widgets core REQUIRED)
 
+  
+  #Boost
+  find_package(Boost 1.58 COMPONENTS program_options system filesystem regex REQUIRED)
+  if (Boost_FOUND)
+      MESSAGE("BOOST FOUND")
+      MESSAGE(${Boost_INCLUDE_DIR})
+      MESSAGE(${Boost_LIBRARIES})
+  endif()
+
+  #OpenCV
+  find_package(OpenCV 3.2 COMPONENTS highgui core imgcodecs imgproc features2d calib3d videoio REQUIRED)
+  if (OpenCV_FOUND)
+    MESSAGE(${OpenCV_LIBS})
+  endif()
+
+  set(OpenCV_LIBS_DEBUG ${OpenCV_LIBS})  
 
 
 else()
@@ -51,20 +71,18 @@ else()
     set(OpenCV_LIB_DEBUG ${OpenCV_BASE_PATH}/lib/opencv_world320d.lib CACHE FILEPATH "")
     set(OpenCV_LIB_RELEASE ${OpenCV_BASE_PATH}/lib/opencv_world320.lib CACHE FILEPATH "")
     set(OpenCV_LIBS debug ${OpenCV_LIB_DEBUG} optimized ${OpenCV_LIB_RELEASE})
-    set(OpenCV_INCLUDES ${OpenCV_BASE_PATH}/include/ CACHE PATH "")
+    set(OpenCV_INCLUDES ${OpenCV_BASE_PATH}/../../include/ CACHE PATH "")
   endif()
-  set(OpenCV_BASE_PATH $ENV{OPENCV_310} CACHE PATH "")
+  set(OpenCV_BASE_PATH $ENV{OPENCV_320} CACHE PATH "")
+
+  set(OpenCV_INCLUDES ${OpenCV_BASE_PATH}/../../include/ CACHE PATH "")
 
   # LIBUSB
-  #find_package(libusb REQUIRED)
-  
-  set(LIBUSB_LIB_DEBUG ../lib/libusbd CACHE FILEPATH "")
-  set(LIBUSB_LIB_RELEASE ../lib/libusb CACHE FILEPATH "")
-  set(LIBUSB_LIBS debug ${LIBUSB_LIB_DEBUG} optimized ${LIBUSB_LIB_RELEASE})
+  set(USB_LIB_DEBUG ${lib_dir}/libusbd.lib)
+  set(USB_LIB_RELEASE ${lib_dir}/libusb.lib)
+  set(USB_LIBS debug ${USB_LIB_DEBUG} optimized ${USB_LIB_RELEASE})
   
   # Qt - not required
-  find_package(Qt5Widgets)
-  find_package(Qt5Core)
   
   # BOOST - not required
 
@@ -72,41 +90,32 @@ endif()
 
 # ========================================================================================= SOURCES
 
+set(ps3_source_windows
+  src/ps3eye.cpp
+  src/ps3eye_capi.cpp)
+
 set(simplecamsource
   src/simplecam.cpp
   src/stdafx.cpp)
 
 set(cameraviewersource
   src/cameraviewer.cpp
-  src/ps3eye.cpp
-  src/ps3eye_capi.cpp
   src/stdafx.cpp)
 
 set(monosource
   src/singlecamcalibration.cpp
-  src/ps3eye.cpp
-  src/ps3eye_capi.cpp
   src/stdafx.cpp)
-  
-set(monosourcefisheye
-  src/singlecamcalibration_fisheye.cpp
-  src/ps3eye.cpp
-  src/ps3eye_capi.cpp
-  src/stdafx.cpp)
-  
-set(monosourceomnidir
-  src/singlecamcalibration_omnidir.cpp
-  src/ps3eye.cpp
-  src/ps3eye_capi.cpp
-  src/stdafx.cpp)  
 
 set(stereosource
   src/stereocamcalibration.cpp
-  src/ps3eye.cpp
-  src/ps3eye_capi.cpp
   src/stdafx.cpp)
   
 # ========================================================================================= HEADERS
+
+set(ps3_header_windows
+  include/ps3eye.h
+  include/ps3eye_capi.h
+  include/libusb.h)
 
 set(simplecamheader
   include/Camera.h
@@ -116,25 +125,16 @@ set(simplecamheader
 set(cameraviewerheader
   include/Camera.h
   include/ThreadCamera.h
-  include/libusb.h
-  include/ps3eye.h
-  include/ps3eye_capi.h
   include/stdafx.h)
 
 set(monoheader
   include/Camera.h
   include/ThreadCamera.h
-  include/libusb.h
-  include/ps3eye.h
-  include/ps3eye_capi.h
   include/stdafx.h)
 
 set(stereoheader
   include/Camera.h
   include/ThreadCamera.h
-  include/libusb.h
-  include/ps3eye.h
-  include/ps3eye_capi.h
   include/stdafx.h)
 
 # ========================================================================================= PROJECT
@@ -186,29 +186,29 @@ endif()
 
 if(UNIX)
 
-add_executable(simplecam ${simplecamsource} ${simplecamheader})
+	add_executable(simplecam ${simplecamsource} ${simplecamheader})
 
-#add_executable(cameraviewer ${cameraviewersource} ${cameraviewerheader})
+	#add_executable(cameraviewer ${cameraviewersource} ${cameraviewerheader})
 
-#add_executable(singlecamcalibration ${monosource} ${monoheader})
+	#add_executable(singlecamcalibration ${monosource} ${monoheader})
 
-#add_executable(stereocamcalibration ${stereosource} ${stereoheader})
+	#add_executable(stereocamcalibration ${stereosource} ${stereoheader})
 
-target_link_libraries(simplecam
-  ${OpenCV_LIBS}
-  Qt5::Widgets
-  Qt5::Core
-  ${Boost_LIBRARIES}
-  pthread
-  #SDL2
-  #readline
-  )
-
-
-#APR_ONLY_LIBS = -lapr-1 -lpthread
+	target_link_libraries(simplecam
+	  ${OpenCV_LIBS}
+	  Qt5::Widgets
+	  Qt5::Core
+	  ${Boost_LIBRARIES}
+	  pthread
+	  #SDL2
+	  #readline
+	  )
 
 
-add_definitions(-DUNIX)
+	#APR_ONLY_LIBS = -lapr-1 -lpthread
+
+
+	add_definitions(-DUNIX)
 
 endif()
 
@@ -218,63 +218,67 @@ endif()
 
 if(WIN32)
 
-#
-# SIMPLE CAMERA VIEWER
-#
-#
-add_executable(simplecam src/simplecam.cpp)
-#
-target_link_libraries(simplecam ${OpenCV_LIBS} Qt5::Widgets Qt5::Core)
-# set output path
-set_target_properties(simplecam PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin)
-# Append "-d" to Debug Executable
-set_target_properties(simplecam PROPERTIES DEBUG_POSTFIX "-d")
+	link_directories(
+		${lib_dir}
+	)
+
+	#
+	# SIMPLE CAMERA VIEWER
+	#
+	#
+	add_executable(simplecam ${simplecamsource} ${simplecamheader} ${ps3_header_windows} ${ps3_source_windows})
+	#
+	target_link_libraries(simplecam ${OpenCV_LIBS} ${USB_LIBS})
+	# set output path
+	set_target_properties(simplecam PROPERTIES
+		RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin
+		RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin)
+	# Append "-d" to Debug Executable
+	set_target_properties(simplecam PROPERTIES DEBUG_POSTFIX "-d")
 
 
-#
-# CAMERA VIEWER
-#
-add_executable(cameraviewer ${cameraviewersource} ${cameraviewerheader})
-# add libraries
-target_link_libraries(cameraviewer ${OpenCV_LIBS} ${LIBUSB_LIBS})
-# set output path
-set_target_properties(cameraviewer PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin)
-# Append "-d" to Debug Executable
-set_target_properties(cameraviewer PROPERTIES DEBUG_POSTFIX "-d")
+	#
+	# CAMERA VIEWER
+	#
+	add_executable(cameraviewer ${cameraviewersource} ${cameraviewerheader} ${ps3_header_windows} ${ps3_source_windows})
+	# add libraries
+	target_link_libraries(cameraviewer ${OpenCV_LIBS} ${USB_LIBS})
+	# set output path
+	set_target_properties(cameraviewer PROPERTIES
+		RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin
+		RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin)
+	# Append "-d" to Debug Executable
+	set_target_properties(cameraviewer PROPERTIES DEBUG_POSTFIX "-d")
 
 
-#
-# SINGLE CAMERA CALIBRATION
-#
-add_executable(singlecamcalibration ${monosource} ${monoheader})
-#
-target_link_libraries(singlecamcalibration ${OpenCV_LIBS} ${LIBUSB_LIBS})
-#
-set_target_properties(singlecamcalibration PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin)
-# Append "-d" to Debug Executable
-set_target_properties(singlecamcalibration PROPERTIES DEBUG_POSTFIX "-d")
+	#
+	# SINGLE CAMERA CALIBRATION
+	#
+	add_executable(singlecamcalibration ${monosource} ${monoheader} ${ps3_header_windows} ${ps3_source_windows})
+	#
+	target_link_libraries(singlecamcalibration ${OpenCV_LIBS} ${USB_LIBS})
+	#
+	set_target_properties(singlecamcalibration PROPERTIES
+		RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin
+		RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin)
+	# Append "-d" to Debug Executable
+	set_target_properties(singlecamcalibration PROPERTIES DEBUG_POSTFIX "-d")
 
 
-#
-# STEREO CAMERA CALIBRATION
-#
-add_executable(stereocamcalibration ${stereosource} ${stereoheader})
-#
-target_link_libraries(stereocamcalibration ${OpenCV_LIBS} ${LIBUSB_LIBS})
-#
-set_target_properties(singlecamcalibration PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin)
-# Append "-d" to Debug Executable
-set_target_properties(singlecamcalibration PROPERTIES DEBUG_POSTFIX "-d")
+	#
+	# STEREO CAMERA CALIBRATION
+	#
+	add_executable(stereocamcalibration ${stereosource} ${stereoheader} ${ps3_header_windows} ${ps3_source_windows})
+	#
+	target_link_libraries(stereocamcalibration ${OpenCV_LIBS} ${USB_LIBS})
+	#
+	set_target_properties(singlecamcalibration PROPERTIES
+		RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin
+		RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin)
+	# Append "-d" to Debug Executable
+	set_target_properties(singlecamcalibration PROPERTIES DEBUG_POSTFIX "-d")
 
- endif()
+endif()
 
 
 # =====================================================================

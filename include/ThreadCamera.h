@@ -337,6 +337,8 @@ namespace PS3EYECam
     static int getSonyEyeDevices(std::vector<std::string> &sonyEyeDevices)
     {
 
+        sonyEyeDevices.clear();
+
         // get all devices registered by video4linux
         std::string v4lDevices;
         std::string basePath = "/dev/v4l/by-path/";
@@ -404,7 +406,17 @@ namespace PS3EYECam
 
     static bool setupDevices()
     {
+
         numSonyEyeCameras = getSonyEyeDevices(deviceNames);
+
+        if (sonyEyeCams.size() > 0)
+        {
+            if (numSonyEyeCameras == sonyEyeCams.size())
+            {
+                printf("Available cameras already initialized.");
+                return true;
+            }
+        }
 
         if (numSonyEyeCameras == 0)
         {
@@ -425,7 +437,6 @@ namespace PS3EYECam
 
         if (sonyEyeCams.size() == numSonyEyeCameras)
             return true;
-
         else
         {
             // release cameras due to error
@@ -520,7 +531,24 @@ public:
         _framerate          = 60;
         _numColorChannels   = 3;
 
-		return true;
+#ifdef WIN32
+		using namespace ps3eye;
+		std::vector<PS3EYECam::PS3EYERef> devices(PS3EYECam::getDevices());
+#endif
+
+#ifdef UNIX
+        PS3EYECam::setupDevices();
+		std::vector<PS3EYECam::PS3EYERef> devices = PS3EYECam::getDevices();
+#endif
+
+        printf("Found %d camera(s).\n", (int)devices.size());
+
+		bool cameraAvailable = false;
+
+		if (devices.size() > 0)
+			cameraAvailable = true;
+
+		return cameraAvailable;
 	};
 
 	bool initialize(
@@ -531,12 +559,16 @@ public:
 		unsigned int framerate)
 	{
 
+		// default init
+		if (!initialize())
+			return false;
+
         _deviceID           = deviceID;
         _resolution.x       = camResolutionWidth;
         _resolution.y       = camResolutionHeight;
         _framerate          = framerate;
         _numColorChannels   = numColorChannels;
-
+		
 		return true;
 	}
 
@@ -613,10 +645,12 @@ private:
         #endif
 
         #ifdef UNIX
+        PS3EYECam::setupDevices();
         std::vector<PS3EYECam::PS3EYERef> devices = PS3EYECam::getDevices();
         #endif
 
 		LOGCON("Found %d cameras.\n", (int)devices.size());
+        printf("Found %d cameras.\n", (int)devices.size());
 
 		bool initializationResult = false;
 
@@ -656,6 +690,13 @@ private:
 				return false;
 			}
 		}
+		else
+		{
+			printf("No camera found. Exiting !\n");
+			return _isInitialized;
+
+		}
+
 
 		frame_bgr = new uint8_t[_resolution.x * _resolution.y * _numColorChannels];
 
@@ -695,6 +736,8 @@ private:
 
         printf("ThreadMain\n");
 
+
+
 		// initialize camera
 		if (!initCamera())
 			return;
@@ -709,7 +752,7 @@ private:
 			g_pages_mutex.lock();
 			{
 
-                //_cameraPtr->getFrame(frame_bgr);
+                
 
                 unsigned char *dst = (unsigned char*)(_latestCamFrame.data);
                 memcpy(dst, frame_bgr, sizeof(uint8_t) * _resolution.x * _resolution.y * _numColorChannels);
@@ -723,6 +766,7 @@ private:
 			}
 			g_pages_mutex.unlock();
 
+			//Sleep(5);
 
 			updateFrameCounter();
 

@@ -1,5 +1,5 @@
 // *******************************************************************
-// Stereo Calibration Tool for Stereo Sony Eye 3 Camera Setup
+// Camera Viewer for multiple Sony Eye 3 Cameras
 //
 // code : Michael Stengel, 2017, 
 // virtuellerealitaet@googlemail.com
@@ -11,9 +11,6 @@
 // *******************************************************************
 
 #include <stdafx.h>
-#include <iostream>
-#include <ctime>
-#include <cstdlib>
 
 #include "ThreadCamera.h"
 
@@ -25,30 +22,25 @@ using namespace std;
 // ***************************************************
 // CAMERA DATA
 
-const int NUM_CAMERAS = 3;
+const int MAX_NUM_CAMERAS	= 4;
+int numDetectedCameras		= 0;
 
-static ThreadCamera *VidCapCam[NUM_CAMERAS];
+static ThreadCamera			*VidCapCam[MAX_NUM_CAMERAS];
+static bool					newframe[MAX_NUM_CAMERAS];
+static cv::Mat				current_frame[MAX_NUM_CAMERAS];
 
-static bool newframe[NUM_CAMERAS];
-static cv::Mat current_frame[NUM_CAMERAS];
+static cv::Mat				roi[MAX_NUM_CAMERAS];
+static Mat					combined;
 
-static cv::Mat roi[NUM_CAMERAS];
-static Mat combined;
-
-bool writeFrames = false;
-float writeFPS = 30.f;
+bool writeFrames			= true;
+float writeFPS				= 30.f;
 
 static void cameracallback(cv::Mat frame, void *userdata)
 {
-	int camIndex = (int)userdata;
-	//std::cout << camIndex << std::endl;
+	int camIndex = *((int*)(&userdata)); // precision loss possible !
 
 	frame.copyTo(current_frame[camIndex]);
 	newframe[camIndex] = true;
-
-	//imshow(std::to_string(camIndex), current_frame[camIndex]);
-	//waitKey(1);
-
 }
 
 bool startCameras()
@@ -59,31 +51,35 @@ bool startCameras()
 	std::vector<PS3EYECam::PS3EYERef> devices(PS3EYECam::getDevices());
 	LOGCON("Found %d cameras.\n", (int)devices.size());
 
-	int numCams = (int)devices.size();
+	numDetectedCameras = devices.size();
 
-	if (numCams < NUM_CAMERAS) {
-		cout << "No or not enough cameras for cam mode connected ! Required : " << NUM_CAMERAS << endl;
+	if (numDetectedCameras < 1) {
+		cout << "No sony eye camera detected !" << endl;
 		return false;
 	}
 
 	// create and initialize two sony ps3 eye cameras
-	for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
+	for (int camIdx = 0; camIdx < numDetectedCameras; camIdx++)
 	{
 		//VidCapCam[camIdx] = new CameraPS3Eye(camIdx);
 		VidCapCam[camIdx] = new ThreadCamera();
 
 		VidCapCam[camIdx]->setCallback(cameracallback, (void*)camIdx);
-		
+				
+		int camera_width = 640;
+		int camera_height = 480;
+		float camera_fps = 30;
+
 		// init cam 0 and cam 1 using VGA@30Hz
-		float camera_fps = 125;
-		int camera_width = 320;
-		int camera_height = 240;
+		//float camera_fps = 125;
+		//int camera_width = 320;
+		//int camera_height = 240;
 
 		//float camera_fps = 195;
 		//int camera_width = 320;
 		//int camera_height = 240;
 				
-		//if (camIdx > 1) // init cam 2 and cam 3 using QVGA@100Hz
+		//if (camIdx >= 1) // init cam 2 and cam 3 using QVGA@100Hz
 		//{
 		//	camera_fps = 100.0;
 		//	camera_width = 320;
@@ -96,7 +92,7 @@ bool startCameras()
 		if (!success) // break if initialization fails
 			return false;
 	}
-	for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
+	for (int camIdx = 0; camIdx < numDetectedCameras; camIdx++)
 	{
 		VidCapCam[camIdx]->startCapture();
 		
@@ -116,20 +112,22 @@ bool startCameras()
 	return true;
 }
 
+
+
 int main(int argc, char** argv)
 {
 
 	// start cameras
 	if (!startCameras())
 	{
-		cout << "Exiting.";
+		cout << "Could not start camera(s). Exiting.";
 		return 0;
 	}
 	
 	// estimate size of combined frame for visualization and video writer
 	int maxHeight = 0;
 	int totalWidth = 0;
-	for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
+	for (int camIdx = 0; camIdx < numDetectedCameras; camIdx++)
 	{
 		if (VidCapCam[camIdx]->getCameraHeight() > maxHeight)
 			maxHeight = VidCapCam[camIdx]->getCameraHeight();
@@ -137,16 +135,18 @@ int main(int argc, char** argv)
 	}
 	combined = Mat(maxHeight, totalWidth, CV_8UC(3));
 	
-	std::cout << "combined size " << maxHeight << " x " << totalWidth << endl;
+	std::cout << "Combined sized for output video : " << totalWidth<< " x " << maxHeight << endl;
 
 	// open camera writer if required
+	std::cout << "Creating video writer (writing into multicam.avi)" << endl;
+		 
 	VideoWriter writer;
 	if (writeFrames)
 		writer.open("multicam.avi", VideoWriter::fourcc('M', 'J', 'P', 'G'), writeFPS, cv::Size(totalWidth, maxHeight), true);
 	
 	// region of interest per camera
 	int currentX = 0;
-	for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
+	for (int camIdx = 0; camIdx < numDetectedCameras; camIdx++)
 	{
 
 		std::cout << "roi" << camIdx << " : " << currentX << endl;
@@ -155,9 +155,6 @@ int main(int argc, char** argv)
 		currentX += VidCapCam[camIdx]->getCameraWidth();
 	}
 	
-	// register mouse event callback for new window
-	//namedWindow("combined");
-	
 	long long startTime = chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now().time_since_epoch()).count();
 	int writeInterval = 1000.0 / writeFPS;
 	std::chrono::milliseconds msPassed;
@@ -165,6 +162,8 @@ int main(int argc, char** argv)
 	
 	// main loop
 	
+	std::cout << "Begin camera capturing & video writing (press key to stop process)" << endl;
+
 	bool stop = false;
 	while (!stop)
 	{
@@ -179,56 +178,58 @@ int main(int argc, char** argv)
 				{
 					startTime = now;
 
-
 					// fill region of interests in combined frame
-					for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
+					for (int camIdx = 0; camIdx < numDetectedCameras; camIdx++)
 						current_frame[camIdx].copyTo(roi[camIdx]);
 
 					// reset camera frame status
-					for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
+					for (int camIdx = 0; camIdx < numDetectedCameras; camIdx++)
 						newframe[camIdx] = false;
 
 					// write frame using video writer
 					writer << combined;
-					//std::cout << "writing frame" << std::endl;
-
+	
 					std::this_thread::sleep_for(std::chrono::milliseconds(max(0, writeInterval - 1)));
 
 				}
 			}
-			else
+			//else
 			{
 
 				// fill region of interests in combined frame
-				for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
+				for (int camIdx = 0; camIdx < numDetectedCameras; camIdx++)
 					current_frame[camIdx].copyTo(roi[camIdx]);
 
 				imshow("combined", combined);
 				waitKey(1);
 
-				//std::this_thread::sleep_for(std::chrono::seconds(1));
-
 			}
 		}
 
-
-		// stop capture after pressing space bar
-		if (GetAsyncKeyState(VK_SPACE))
+		// quite program on keyboard input
+		char c = cvWaitKey(1);
+		if (c != -1)
 			stop = true;
 		
 
 	}
 
+	cout << "\nCamera loop stopped.\n\nClosing video....";
+
 	// release frame writer
 	if (writeFrames)
 		writer.release();
+
+	cout << "done.\nDisconnecting cameras ...";
 
 	// release opencv windows
 	destroyAllWindows();
 
 	// deinitialize cameras	
-	for (int camIdx = 0; camIdx < NUM_CAMERAS; camIdx++)
+	for (int camIdx = 0; camIdx < numDetectedCameras; camIdx++)
 		VidCapCam[camIdx]->stopCapture();
+
+	cout << "done.\n\nRegular program exit.\n\n";
 
 	return 0;
 

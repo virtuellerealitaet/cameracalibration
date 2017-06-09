@@ -1,7 +1,9 @@
-/*****************************************************************************
-* Application :		Camera Calibration Application
-*					using OpenCV3 (http://opencv.org/)
-*					and PS3EYEDriver C API Interface (by Thomas Perl)
+/****************************************************************************************
+* Application :	Camera Calibration Application using
+*
+*					-OpenCV3 (http://opencv.org/) and
+*					-PS3EYEDriver C API Interface (by Thomas Perl) for Windows build
+*					-Video4Linux2 for Linux build
 *
 * Author      :		Michael Stengel <virtuellerealitaet@gmail.com>
 *
@@ -28,7 +30,7 @@
 * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 * POSSIBILITY OF SUCH DAMAGE.
-**/
+***************************************************************************************/
 
 #pragma once
 
@@ -86,62 +88,51 @@
 #ifdef WIN32
 
     // Windows API
-    #include <Windows.h>
-    #include <windowsx.h>
-    #include <direct.h>
-    #include <mmsystem.h>
+    //#include <Windows.h>
+    //#include <windowsx.h>
+    //#include <direct.h>
+    //#include <mmsystem.h>
 
-    // windows dialog includes
-    #pragma region Includes and Manifest Dependencies
-    #include <windows.h>
-    #include <windowsx.h>
-    #include <strsafe.h>
-    #include <new>
-    #include <shlobj.h>
-    #include <shlwapi.h>
-    #include <atlstr.h>
-    #include <atlconv.h>
+    //// windows dialog includes
+    //#pragma region Includes and Manifest Dependencies
+    //#include <windows.h>
+    //#include <windowsx.h>
+    //#include <strsafe.h>
+    //#include <new>
+    //#include <shlobj.h>
+    //#include <shlwapi.h>
+    //#include <atlstr.h>
+    //#include <atlconv.h>
 
 #endif
 
 
 // system includes
 
-#include <iostream>     // std::cout
-#include <iomanip>      // std::setprecision
-#include <fstream>      // fopen
-#include <string>       // std::string
-#include <sstream>      // std::stringstream
-#include <vector>       // std::vector
-#include <map>          // std::map
-#include <unordered_map>
-#include <set>
-#include <typeinfo>
-#include <algorithm>
-#include <iterator>
-#include <stdio.h>
-#include <stdlib.h>
-#include <ctype.h>
+//#include <iostream>     // std::cout
+//#include <iomanip>      // std::setprecision
+//#include <fstream>      // fopen
+//#include <string>       // std::string
+//#include <sstream>      // std::stringstream
+//#include <vector>       // std::vector
+//#include <map>          // std::map
+//#include <unordered_map>
+//#include <set>
+//#include <typeinfo>
+//#include <algorithm>
+//#include <iterator>
+//#include <stdio.h>
+//#include <stdlib.h>
+//#include <ctype.h>
 
 // OpenCV
-#include <opencv2/core.hpp>
-#include <opencv2/imgproc.hpp>
-#include <opencv2/calib3d.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/features2d.hpp>
+#include <opencv2\opencv.hpp>
 
-#ifdef WIN32
-typedef BYTE PIXELVALUE;
-#endif
+typedef uint8_t PIXELVALUE;
 
 #ifdef WIN32
 
 #define exit(_Code) { if (_Code) { assert(0); std::cout << "Quit..."; std::string s; std::cin.putback('X'); std::cin >> s; exit(_Code); } }
-
-SHORT WINAPI GetAsyncKeyState(
-    _In_ int vKey
-    );
 
 #define  LOGCON(...)  { printf(__VA_ARGS__); }
 #define  LOGDEBUG(...)  {	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE); SetConsoleTextAttribute(hConsole, 10); printf(__VA_ARGS__);SetConsoleTextAttribute(hConsole, 7);}
