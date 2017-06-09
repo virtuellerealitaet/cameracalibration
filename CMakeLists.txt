@@ -95,19 +95,19 @@ set(ps3_source_windows
   src/ps3eye.cpp
   src/ps3eye_capi.cpp)
 
-set(simplecamsource
-  src/simplecam.cpp
+set(multicamviewersource
+  src/multicamviewer.cpp
   src/stdafx.cpp)
 
-set(cameraviewersource
-  src/cameraviewer.cpp
+set(multicamwritersource
+  src/multicamwriter.cpp
   src/stdafx.cpp)
 
-set(monosource
+set(singlecamcalibsource
   src/singlecamcalibration.cpp
   src/stdafx.cpp)
 
-set(stereosource
+set(stereocamcalibsource
   src/stereocamcalibration.cpp
   src/stdafx.cpp)
   
@@ -118,22 +118,22 @@ set(ps3_header_windows
   include/ps3eye_capi.h
   include/libusb.h)
 
-set(simplecamheader
+set(multicamviewerheader
   include/Camera.h
   include/ThreadCamera.h
   include/stdafx.h)
 
-set(cameraviewerheader
+set(multicamwriterheader
   include/Camera.h
   include/ThreadCamera.h
   include/stdafx.h)
 
-set(monoheader
+set(singlecamcalibheader
   include/Camera.h
   include/ThreadCamera.h
   include/stdafx.h)
 
-set(stereoheader
+set(stereocamcalibheader
   include/Camera.h
   include/ThreadCamera.h
   include/stdafx.h)
@@ -187,15 +187,9 @@ endif()
 
 if(UNIX)
 
-	add_executable(simplecam ${simplecamsource} ${simplecamheader})
+	add_executable(multicamviewer ${multicamviewersource} ${multicamviewerheader})
 
-	#add_executable(cameraviewer ${cameraviewersource} ${cameraviewerheader})
-
-	#add_executable(singlecamcalibration ${monosource} ${monoheader})
-
-	#add_executable(stereocamcalibration ${stereosource} ${stereoheader})
-
-	target_link_libraries(simplecam
+	target_link_libraries(multicamviewer
 	  ${OpenCV_LIBS}
 	  Qt5::Widgets
 	  Qt5::Core
@@ -227,7 +221,7 @@ if(WIN32)
 	# MULTI CAMERA VIEWER
 	#
 	#
-	add_executable(multicamviewer ${simplecamsource} ${simplecamheader} ${ps3_header_windows} ${ps3_source_windows})
+	add_executable(multicamviewer ${multicamviewersource} ${multicamviewerheader} ${ps3_header_windows} ${ps3_source_windows})
 	#
 	target_link_libraries(multicamviewer ${OpenCV_LIBS} ${USB_LIBS})
 	# set output path
@@ -241,7 +235,7 @@ if(WIN32)
 	#
 	# MULTI CAMERA WRITER
 	#
-	add_executable(multicamwriter ${cameraviewersource} ${cameraviewerheader} ${ps3_header_windows} ${ps3_source_windows})
+	add_executable(multicamwriter ${multicamwritersource} ${multicamwriterheader} ${ps3_header_windows} ${ps3_source_windows})
 	# add libraries
 	target_link_libraries(multicamwriter ${OpenCV_LIBS} ${USB_LIBS})
 	# set output path
@@ -255,7 +249,7 @@ if(WIN32)
 	#
 	# SINGLE CAMERA CALIBRATION
 	#
-	add_executable(singlecamcalibration ${monosource} ${monoheader} ${ps3_header_windows} ${ps3_source_windows})
+	add_executable(singlecamcalibration ${singlecamcalibsource} ${singlecamcalibheader} ${ps3_header_windows} ${ps3_source_windows})
 	#
 	target_link_libraries(singlecamcalibration ${OpenCV_LIBS} ${USB_LIBS})
 	#
@@ -269,15 +263,15 @@ if(WIN32)
 	#
 	# STEREO CAMERA CALIBRATION
 	#
-	add_executable(stereocamcalibration ${stereosource} ${stereoheader} ${ps3_header_windows} ${ps3_source_windows})
+	add_executable(stereocamcalibration ${stereocamcalibsource} ${stereocamcalibheader} ${ps3_header_windows} ${ps3_source_windows})
 	#
 	target_link_libraries(stereocamcalibration ${OpenCV_LIBS} ${USB_LIBS})
 	#
-	set_target_properties(singlecamcalibration PROPERTIES
+	set_target_properties(stereocamcalibration PROPERTIES
 		RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin)
 	# Append "-d" to Debug Executable
-	set_target_properties(singlecamcalibration PROPERTIES DEBUG_POSTFIX "-d")
+	set_target_properties(stereocamcalibration PROPERTIES DEBUG_POSTFIX "-d")
 
 endif()
 
