@@ -68,14 +68,15 @@ else()
 
   # OPENCV
   if (OpenCV_BASE_PATH)
-    set(OpenCV_LIB_DEBUG ${OpenCV_BASE_PATH}/lib/opencv_world320d.lib CACHE FILEPATH "")
-    set(OpenCV_LIB_RELEASE ${OpenCV_BASE_PATH}/lib/opencv_world320.lib CACHE FILEPATH "")
+    set(OpenCV_LIB_DEBUG ${OpenCV_BASE_PATH}/x64/vc14/lib/opencv_world320d.lib CACHE FILEPATH "")
+    set(OpenCV_LIB_RELEASE ${OpenCV_BASE_PATH}/x64/vc14/lib/opencv_world320.lib CACHE FILEPATH "")
     set(OpenCV_LIBS debug ${OpenCV_LIB_DEBUG} optimized ${OpenCV_LIB_RELEASE})
-    set(OpenCV_INCLUDES ${OpenCV_BASE_PATH}/../../include/ CACHE PATH "")
+    set(OpenCV_INCLUDES ${OpenCV_BASE_PATH}/include/ CACHE PATH "")
   endif()
-  set(OpenCV_BASE_PATH $ENV{OPENCV_320} CACHE PATH "")
+  #set(OpenCV_BASE_PATH $ENV{OPENCV_320} CACHE PATH "")
+  set(OpenCV_BASE_PATH "E:/lib/opencv32/opencv/build" CACHE PATH "")
 
-  set(OpenCV_INCLUDES ${OpenCV_BASE_PATH}/../../include/ CACHE PATH "")
+  
 
   # LIBUSB
   set(USB_LIB_DEBUG ${lib_dir}/libusbd.lib)
@@ -223,32 +224,32 @@ if(WIN32)
 	)
 
 	#
-	# SIMPLE CAMERA VIEWER
+	# MULTI CAMERA VIEWER
 	#
 	#
-	add_executable(simplecam ${simplecamsource} ${simplecamheader} ${ps3_header_windows} ${ps3_source_windows})
+	add_executable(multicamviewer ${simplecamsource} ${simplecamheader} ${ps3_header_windows} ${ps3_source_windows})
 	#
-	target_link_libraries(simplecam ${OpenCV_LIBS} ${USB_LIBS})
+	target_link_libraries(multicamviewer ${OpenCV_LIBS} ${USB_LIBS})
 	# set output path
-	set_target_properties(simplecam PROPERTIES
+	set_target_properties(multicamviewer PROPERTIES
 		RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin)
 	# Append "-d" to Debug Executable
-	set_target_properties(simplecam PROPERTIES DEBUG_POSTFIX "-d")
+	set_target_properties(multicamviewer PROPERTIES DEBUG_POSTFIX "-d")
 
 
 	#
-	# CAMERA VIEWER
+	# MULTI CAMERA WRITER
 	#
-	add_executable(cameraviewer ${cameraviewersource} ${cameraviewerheader} ${ps3_header_windows} ${ps3_source_windows})
+	add_executable(multicamwriter ${cameraviewersource} ${cameraviewerheader} ${ps3_header_windows} ${ps3_source_windows})
 	# add libraries
-	target_link_libraries(cameraviewer ${OpenCV_LIBS} ${USB_LIBS})
+	target_link_libraries(multicamwriter ${OpenCV_LIBS} ${USB_LIBS})
 	# set output path
-	set_target_properties(cameraviewer PROPERTIES
+	set_target_properties(multicamwriter PROPERTIES
 		RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin)
 	# Append "-d" to Debug Executable
-	set_target_properties(cameraviewer PROPERTIES DEBUG_POSTFIX "-d")
+	set_target_properties(multicamwriter PROPERTIES DEBUG_POSTFIX "-d")
 
 
 	#
