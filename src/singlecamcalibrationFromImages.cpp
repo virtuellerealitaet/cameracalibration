@@ -32,18 +32,8 @@
 * POSSIBILITY OF SUCH DAMAGE.
 ***************************************************************************************/
 
-#include <cambox.h>
-
-#include <iostream>
-#include <vector>
-
-#ifdef WIN32
-#include <Windows.h>
-#pragma comment(lib, "User32.lib")
-SHORT WINAPI GetAsyncKeyState(
-	_In_ int vKey
-);
-#endif
+#include <stdafx.h>
+#include "ThreadCamera.h"
 
 #undef min
 #undef max
@@ -54,11 +44,28 @@ using namespace std;
 
 const char * usage =
 " \nexample command line for calibration from a live feed.\n"
-"   singlecamcalibration.exe -w 9 -h 6 -n 15 -pt chessboard -o mycam -op -oe\n"
-"   singlecamcalibration.exe -useSonyEye -w 9 -h 6 -n 15 -pt chessboard -o mycam -op -oe\n"
-"   singlecamcalibration.exe -usePupillabs -w 9 -h 6 -n 15 -pt chessboard -o mycam -op -oe\n"
-"   singlecamcalibration.exe -usePupillabs -deviceid 1 -w 9 -h 6 -n 15 -pt chessboard -o mycam -op -oe\n"
-" \n";
+"   singlecamcalibration.exe -useSonyEye -w 9 -h 6 -pt chessboard -n 15 -d 2000 -o mycam -op -oe\n"
+" \n"
+" example command line for calibration from a list of stored images:\n"
+"   imagelist_creator image_list.xml *.png\n"
+"   calibration -w 4 -h 5 -s 0.025 -o camera.yml -op -oe image_list.xml\n"
+" where image_list.xml is the standard OpenCV XML/YAML\n"
+" use imagelist_creator to create the xml or yaml list\n"
+" file consisting of the list of strings, e.g.:\n"
+" \n"
+"<?xml version=\"1.0\"?>\n"
+"<opencv_storage>\n"
+"<images>\n"
+"view000.png\n"
+"view001.png\n"
+"<!-- view002.png -->\n"
+"view003.png\n"
+"view010.png\n"
+"one_extra_view.jpg\n"
+"</images>\n"
+"</opencv_storage>\n";
+
+
 
 
 const char* liveCaptureHelp =
@@ -72,14 +79,14 @@ static void help()
     printf( "Single camera calibration using OpenCV\n"
         "Usage:\n"
 		"     -useSonyEye              # use sony eye camera instead of default camera\n"
-		"     -usePupillabs            # use pupil labs camera instead of default camera\n"
-		"     -deviceid				   # use camera defined by device id (default = 0)\n"
         "     -w <board_width>         # the number of inner corners per one of board dimension\n"
         "     -h <board_height>        # the number of inner corners per another board dimension\n"
         "     [-pt <pattern>]          # the type of pattern: chessboard or circles' grid\n"
         "     [-n <number_of_frames>]  # the number of frames to use for calibration\n"
         "                              # (if not specified, it will be set to the number\n"
         "                              #  of board views actually available)\n"
+        "     [-d <delay>]             # a minimum delay in ms between subsequent attempts to capture a next view\n"
+        "                              # (used only for video capturing)\n"
         "     [-s <squareSize>]       # square size in some user-defined units (1 by default)\n"
         "     [-o <out_camera_params>] # the output filename for intrinsic [and extrinsic] parameters\n"
         "     [-op]                    # write detected feature points\n"
@@ -91,6 +98,11 @@ static void help()
         "     [-V]                     # use a video file, and not an image list, uses\n"
         "                              # [input_data] string for the video file name\n"
         "     [-su]                    # show undistorted images after calibration\n"
+        "     [input_data]             # input data, one of the following:\n"
+        "                              #  - text file with a list of the images of the board\n"
+        "                              #    the text file can be generated with imagelist_creator\n"
+        "                              #  - name of video file with a video of the board\n"
+        "                              # if input_data not specified, a live view from the camera is used\n"
         "\n" );
     printf("\n%s",usage);
     printf( "\n%s", liveCaptureHelp );
@@ -319,28 +331,27 @@ int main( int argc, char** argv )
     const char* outputFilename = "out_camera_data.yml";
     const char* inputFilename = 0;
 
-    //int i, nframes = 10;
-	int nframes = 10;
+    int i, nframes = 10;
     bool writeExtrinsics = false, writePoints = false;
     bool undistortImage = false;
     int flags = 0;
     
-	CamBox::VideoCamera* camera = 0;
+	VideoCapture capture;
+	ThreadCamera *pseye;
 
+
+    bool flipVertical = false;
     bool showUndistorted = false;
     bool videofile = false;
+    int delay = 1000;
     clock_t prevTimestamp = 0;
     int mode = DETECTION;
-	
-	bool useSonyEyeCam = false;
-	bool usePupillabsCam = false;
-	int cameraId = 0;
-
+    int cameraId = 0;
     vector<vector<Point2f> > imagePoints;
     vector<string> imageList;
     Pattern pattern = CHESSBOARD;
 
-	
+	bool useEyeCam = false;
 
     if( argc < 2 )
     {
@@ -348,7 +359,7 @@ int main( int argc, char** argv )
         return 0;
     }
 
-    for( int i = 1; i < argc; i++ )
+    for( i = 1; i < argc; i++ )
     {
         const char* s = argv[i];
         if( strcmp( s, "-w" ) == 0 )
@@ -389,11 +400,11 @@ int main( int argc, char** argv )
                 return printf("Invalid aspect ratio\n" ), -1;
             flags |= CV_CALIB_FIX_ASPECT_RATIO;
         }
-        //else if( strcmp( s, "-d" ) == 0 )
-        //{
-        //    if( sscanf( argv[++i], "%u", &delay ) != 1 || delay <= 0 )
-        //        return printf("Invalid delay\n" ), -1;
-        //}
+        else if( strcmp( s, "-d" ) == 0 )
+        {
+            if( sscanf( argv[++i], "%u", &delay ) != 1 || delay <= 0 )
+                return printf("Invalid delay\n" ), -1;
+        }
         else if( strcmp( s, "-op" ) == 0 )
         {
             writePoints = true;
@@ -410,10 +421,10 @@ int main( int argc, char** argv )
         {
             flags |= CV_CALIB_FIX_PRINCIPAL_POINT;
         }
-        //else if( strcmp( s, "-v" ) == 0 )
-        //{
-        //    flipVertical = true;
-        //}
+        else if( strcmp( s, "-v" ) == 0 )
+        {
+            flipVertical = true;
+        }
         else if( strcmp( s, "-V" ) == 0 )
         {
             videofile = true;
@@ -426,121 +437,68 @@ int main( int argc, char** argv )
         {
             showUndistorted = true;
         }
-        //else if( s[0] != '-' )
-        //{
-        //    if( isdigit(s[0]) )
-        //        sscanf(s, "%d", &cameraId);
-        //    else
-        //        inputFilename = s;
-        //}
+        else if( s[0] != '-' )
+        {
+            if( isdigit(s[0]) )
+                sscanf(s, "%d", &cameraId);
+            else
+                inputFilename = s;
+        }
 		else if (strcmp(s, "-useSonyEye") == 0 )
 		{
-			useSonyEyeCam = true;
-		}
-		else if (strcmp(s, "-usePupillabs") == 0)
-		{
-			usePupillabsCam = true;
-		}
-		else if (strcmp(s, "-deviceid") == 0)
-		{
-			if (sscanf(argv[++i], "%u", &cameraId) < 0)
-				return printf("Invalid device id (has to be >= 0)\n"), -1;
+			useEyeCam = true;
 		}
         else
             return fprintf( stderr, "Unknown option %s", s ), -1;
     }
 
 	bool captureIsOpen = false;
-	
-	if (useSonyEyeCam)
+
+    if( inputFilename )
+    {
+        if( !videofile && readStringList(inputFilename, imageList) )
+            mode = CAPTURING;
+        else
+            capture.open(inputFilename);
+    }
+	else
 	{
-
-		unsigned int numPS3EyeCameras = CamBox::getNumberAvailablePS3EyeCameras();
-		if (numPS3EyeCameras == 0)
-		{
-			printf("ERROR : no ps3eye cameras available. exit.\n");
-			return -1;
-		}
+		if (useEyeCam)
+			pseye = new ThreadCamera();
 		else
-		{
-			printf("%d ps3eye cameras available.\n", numPS3EyeCameras);
-			if (cameraId >= numPS3EyeCameras || cameraId < 0)
-			{
-				printf("ERROR : no ps3eye camera with camera id = %d available.\n", numPS3EyeCameras);
-				return -1;
-			}
-			else
-			{
-				CamBox::PS3EyeCamera* ps3eyecamera = CamBox::createPS3EyeCamera(cameraId, 640, 480, 75);
-				if (ps3eyecamera->initialize())
-				{
-
-					camera = (CamBox::VideoCamera*)ps3eyecamera;
-
-					// enable autogain
-					camera->setAutoGain(true);
-
-					// enable auto whitebalance
-					camera->setAutoWhitebalance(true);
-
-					camera->setExposure(0.3);
-
-					camera->setGain(0.0);
-
-					camera->setHue(0.5);
-
-					Sleep(500);
-
-					camera->startCapture();
-										
-				}
-			}
-		}
+			capture.open(cameraId);
 	}
-	else if (usePupillabsCam)
+    
+	if (useEyeCam)
 	{
+		int camwidth = 640;
+		int camheight = 480;
+		int framerate = 60;
 
-		unsigned int numPupillabsCameras = CamBox::getNumberAvailablePupilLabsCameras();
-		if (numPupillabsCameras == 0)
-		{
-			printf("ERROR : no pupillabs cameras available. exit.\n");
-			return -1;
-		}
+		if (!pseye->initialize(0, camwidth, camheight,3, framerate))
+			return fprintf(stderr, "Could not initialize Sony Eye Cam ! \n"), -2;
 		else
 		{
-			printf("%d pupillabs cameras available.\n", numPupillabsCameras);
-			if (cameraId >= numPupillabsCameras || cameraId < 0)
-			{
-				printf("ERROR : no pupillabs camera with camera id = %d available.\n", numPupillabsCameras);
-				return -1;
-			}
-			else
-			{
-				CamBox::PupilLabsCamera* pupillabscamera = CamBox::createPupilLabsCamera(cameraId, 640, 480, 120);
-				if (pupillabscamera->initialize())
-				{
-					// enable autogain
+			pseye->startCapture();
+			
+			Sleep(500);
 
-					// enable auto whitebalance
+			pseye->_autogain = true;
+			pseye->_autowhitebalance = true;
+			pseye->updateCameraSettings();
 
-					camera = (CamBox::VideoCamera*)pupillabscamera;
-
-					Sleep(500);
-
-					camera->startCapture();
-
-				}
-			}
+			Sleep(500);
 		}
 	}
 	else
 	{
-		printf("ERROR: default camera device not supported\n");
-		return -1;
+		if (!capture.isOpened() && imageList.empty())
+			return fprintf(stderr, "Could not initialize video (%d) capture\n", cameraId), -2;
+		else
+			printf("%s", liveCaptureHelp);
 	}
 
-	if (camera)
-		captureIsOpen = true;
+	captureIsOpen = true;
 
 
     if( !imageList.empty() )
@@ -548,29 +506,27 @@ int main( int argc, char** argv )
 
     namedWindow( "Image View", 1 );
 
-	uint8_t  *cameraFrameData = new uint8_t[camera->getFrameMemorySize()];
-	Mat view = cv::Mat(cv::Size(camera->getCameraWidth(), camera->getCameraHeight()), CV_8UC3);
-
-    for(int i = 0;;i++)
+    for(i = 0;;i++)
     {
-        Mat viewGray;
+        Mat view, viewGray;
         bool blink = false;
 
-		while (true)
+		if (useEyeCam)
 		{
-			camera->receiveFrameCopy(cameraFrameData);
-			view.data = cameraFrameData;
-			if (view.size().empty())
-			{
-				printf("no new camera frame yet\n");
-				Sleep(100);
-			}
-			else
-			{
-				break;
-			}
+			Mat view0;
+			pseye->receiveFrameCopy(view0);
+			view0.copyTo(view);
+			
 		}
-		
+		else if( capture.isOpened() )
+        {
+            Mat view0;
+            capture >> view0;
+            view0.copyTo(view);
+        }
+        else if( i < (int)imageList.size() )
+            view = imread(imageList[i], 1);
+
         if(!view.data)
         {
             if( imagePoints.size() > 0 )
@@ -582,6 +538,9 @@ int main( int argc, char** argv )
         }
 
         imageSize = view.size();
+
+        if( flipVertical )
+            flip( view, view, 0 );
 
         vector<Point2f> pointbuf;
         cvtColor(view, viewGray, CV_BGR2GRAY);
@@ -607,31 +566,19 @@ int main( int argc, char** argv )
         if( pattern == CHESSBOARD && found) cornerSubPix( viewGray, pointbuf, Size(11,11),
             Size(-1,-1), TermCriteria( CV_TERMCRIT_EPS+CV_TERMCRIT_ITER, 30, 0.1 ));
 
-		int key = cv::waitKey(1);
-
-		bool spacePressed = false;
-		bool escapePressed = false;
-
-		if ((key & 255) == 32)
-			spacePressed = true;
-		if ((key & 255) == 27)
-			escapePressed = true;
-
-        //if( mode == CAPTURING && found && (!captureIsOpen || clock() - prevTimestamp > delay*1e-3*CLOCKS_PER_SEC) )
-		if (spacePressed) // if space pressed
+        if( mode == CAPTURING && found &&
+           (!captureIsOpen || clock() - prevTimestamp > delay*1e-3*CLOCKS_PER_SEC) )
         {
             imagePoints.push_back(pointbuf);
             prevTimestamp = clock();
             blink = captureIsOpen;
         }
 
-		if (escapePressed) // quit program
-			break;
-
         if(found)
             drawChessboardCorners( view, boardSize, Mat(pointbuf), found );
 
-        string msg = mode == CAPTURING ? "100/100" : "Press 'SPACE' to begin";
+        string msg = mode == CAPTURING ? "100/100" :
+            mode == CALIBRATED ? "Calibrated" : "Press 'g' to start";
         int baseLine = 0;
         Size textSize = getTextSize(msg, 1, 1, 1, &baseLine);
         Point textOrigin(view.cols - 2*textSize.width - 10, view.rows - 2*baseLine - 10);
@@ -643,38 +590,43 @@ int main( int argc, char** argv )
             else
                 msg = format( "%d/%d", (int)imagePoints.size(), nframes );
         }
-		if (mode == CALIBRATED)
-		{
-			if (undistortImage)
-				msg = format("Calibrated (Undistored)");
-			else
-				msg = format("Calibrated (Raw)");
-		}
-
 
         putText( view, msg, textOrigin, 1, 1,
                  mode != CALIBRATED ? Scalar(0,0,255) : Scalar(0,255,0));
 
-		// flash image when image capturing successful
         if( blink )
             bitwise_not(view, view);
 
-		// undistort image if calibrated & show undistorted
         if( mode == CALIBRATED && undistortImage )
         {
             Mat temp = view.clone();
+            //undistort(temp, view, cameraMatrix, distCoeffs);
+
 			Mat map1, map2;
+			
 			initUndistortRectifyMap(cameraMatrix, distCoeffs, Mat(), getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 0.0), imageSize, CV_16SC2, map1, map2);
+			//remap(temp, view, map1, map2, INTER_LINEAR);
 			undistort(temp, view, cameraMatrix, distCoeffs, getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1.0));
+
+
+			//Mat newCamMat;
+			//fisheye::estimateNewCameraMatrixForUndistortRectify(cameraMatrix, distCoeffs, imageSize, Matx33d::eye(), newCamMat, 0);
+			//fisheye::initUndistortRectifyMap(cameraMatrix, distCoeffs, Matx33d::eye(), newCamMat, imageSize, CV_16SC2, map1, map2);
+
+			//fisheye::undistortImage(temp, view, cameraMatrix, distCoeffs);
+
         }
 
         imshow("Image View", view);
+        int key = 0xff & waitKey(captureIsOpen ? 50 : 500);
 
-		
+        if( (key & 255) == 27 )
+            break;
+
         if( key == 'u' && mode == CALIBRATED )
             undistortImage = !undistortImage;
 
-        if(mode == DETECTION && spacePressed)
+        if(captureIsOpen && key == 'g' )
         {
             mode = CAPTURING;
             imagePoints.clear();
@@ -706,7 +658,7 @@ int main( int argc, char** argv )
 		fisheye::initUndistortRectifyMap(cameraMatrix, distCoeffs, Matx33d::eye(), newCamMat, imageSize, CV_16SC2, map1, map2);
 
 
-        for( int i = 0; i < (int)imageList.size(); i++ )
+        for( i = 0; i < (int)imageList.size(); i++ )
         {
             view = imread(imageList[i], 1);
             if(!view.data)
@@ -714,6 +666,8 @@ int main( int argc, char** argv )
             
 			//undistort( view, rview, cameraMatrix, distCoeffs, cameraMatrix );
             
+			
+
 			//remap(view, rview, map1, map2, INTER_LINEAR);
 
 			fisheye::undistortImage(view, rview, cameraMatrix, distCoeffs);
@@ -727,8 +681,11 @@ int main( int argc, char** argv )
         }
     }
 
-	// deinitialize camera
-	camera->deinitialize();
+	if (useEyeCam)
+	{
+		pseye->deinitialize();
+		delete pseye;
+	}
 
     return 0;
 }

@@ -2,6 +2,9 @@
 #include "stdafx.h"
 #include "ThreadCamera.h"
 
+#include "argtable3.h"
+
+
 const int MAX_NUM_CAMERAS = 2;
 
 int numDetectedCameras = 0;
@@ -81,7 +84,6 @@ bool startCameras()
 
 }
 
-
 bool stopCameras()
 {
     for (int camIdx = 0; camIdx < numDetectedCameras; camIdx++)
@@ -100,7 +102,6 @@ bool stopCameras()
 
     return true;
 }
-
 
 int main(int argc, char *argv[])
 {

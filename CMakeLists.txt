@@ -33,26 +33,26 @@ if (UNIX)
   endif()
 
   #Boost
-  find_package(Boost 1.58 COMPONENTS program_options system filesystem regex REQUIRED)
-  if (Boost_FOUND)
-      MESSAGE("BOOST FOUND")
-      MESSAGE(${Boost_INCLUDE_DIR})
-      MESSAGE(${Boost_LIBRARIES})
-  endif()
+  #find_package(Boost 1.58 COMPONENTS program_options system filesystem regex REQUIRED)
+  #if (Boost_FOUND)
+  #    MESSAGE("BOOST FOUND")
+  #    MESSAGE(${Boost_INCLUDE_DIR})
+  #    MESSAGE(${Boost_LIBRARIES})
+  #endif()
 
 
   # Qt
-  find_package(Qt5Widgets)
-  find_package(Qt5Core)
+  #find_package(Qt5Widgets)
+  #find_package(Qt5Core)
 
   
   #Boost
-  find_package(Boost 1.58 COMPONENTS program_options system filesystem regex REQUIRED)
-  if (Boost_FOUND)
-      MESSAGE("BOOST FOUND")
-      MESSAGE(${Boost_INCLUDE_DIR})
-      MESSAGE(${Boost_LIBRARIES})
-  endif()
+  #find_package(Boost 1.58 COMPONENTS program_options system filesystem regex REQUIRED)
+  #if (Boost_FOUND)
+  #    MESSAGE("BOOST FOUND")
+  #    MESSAGE(${Boost_INCLUDE_DIR})
+  #    MESSAGE(${Boost_LIBRARIES})
+  #endif()
 
   #OpenCV
   find_package(OpenCV 3.2 COMPONENTS highgui core imgcodecs imgproc features2d calib3d videoio REQUIRED)
@@ -67,13 +67,13 @@ else()
 
   # OPENCV
   if (OpenCV_BASE_PATH)
-    set(OpenCV_LIB_DEBUG ${OpenCV_BASE_PATH}/x64/vc14/lib/opencv_world320d.lib CACHE FILEPATH "")
-    set(OpenCV_LIB_RELEASE ${OpenCV_BASE_PATH}/x64/vc14/lib/opencv_world320.lib CACHE FILEPATH "")
+    set(OpenCV_LIB_DEBUG ${OpenCV_BASE_PATH}/x64/vc14/lib/opencv_world300d.lib CACHE FILEPATH "")
+    set(OpenCV_LIB_RELEASE ${OpenCV_BASE_PATH}/x64/vc14/lib/opencv_world300.lib CACHE FILEPATH "")
     set(OpenCV_LIBS debug ${OpenCV_LIB_DEBUG} optimized ${OpenCV_LIB_RELEASE})
     set(OpenCV_INCLUDES ${OpenCV_BASE_PATH}/include/ CACHE PATH "")
   endif()
   #set(OpenCV_BASE_PATH $ENV{OPENCV_320} CACHE PATH "")
-  set(OpenCV_BASE_PATH "E:/lib/opencv32/opencv/build" CACHE PATH "")
+  set(OpenCV_BASE_PATH "/opencv3/opencv/build" CACHE PATH "")
 
   
 
@@ -98,6 +98,10 @@ set(multicamviewersource
   src/multicamviewer.cpp
   src/stdafx.cpp)
 
+set(singlecamviewersource
+  src/viewer_singlecam.cpp
+  src/stdafx.cpp)
+  
 set(multicamwritersource
   src/multicamwriter.cpp
   src/stdafx.cpp)
@@ -117,6 +121,11 @@ set(ps3_header_windows
   include/ps3eye_capi.h
   include/libusb.h)
 
+set(singlecamviewerheader
+  include/Camera.h
+  include/ThreadCamera.h
+  include/stdafx.h)  
+  
 set(multicamviewerheader
   include/Camera.h
   include/ThreadCamera.h
@@ -139,20 +148,10 @@ set(stereocamcalibheader
 
 # ========================================================================================= PROJECT
 
-
-MESSAGE( STATUS "Boost_INCLUDE_DIR: " ${Boost_INCLUDE_DIR} )
-MESSAGE( STATUS "Boost_LIBRARY_DIR: " ${Boost_LIBRARY_DIR} )
-MESSAGE( STATUS "Boost_LIBRARIES: " ${Boost_LIBRARIES} )
-
 MESSAGE( STATUS "OpenCV_INCLUDE_DIR: " ${OpenCV_INCLUDE_DIR} )
 MESSAGE( STATUS "OpenCV_INCLUDES: " ${OpenCV_INCLUDES} )
 MESSAGE( STATUS "OpenCV_LIBRARY_DIR: " ${OpenCV_LIBRARY_DIR} )
 MESSAGE( STATUS "OpenCV_LIBRARIES: " ${OpenCV_LIBRARIES} )
-
-MESSAGE( STATUS "QT5_INCLUDES: " ${QT5_INCLUDES} )
-MESSAGE( STATUS "QT5_INCLUDE_DIR: " ${QT5_INCLUDE_DIR} )
-MESSAGE( STATUS "QT5_LIBRARIES: " ${QT5_LIBRARIES} )
-
 
 include_directories(
   include/
@@ -185,6 +184,15 @@ endif()
 # =====================================================================
 
 if(UNIX)
+
+	add_executable(singlecamviewer ${singlecamviewersource} ${singlecamviewerheader})
+	target_link_libraries(singlecamviewer
+	  ${OpenCV_LIBS}
+	  Qt5::Widgets
+	  Qt5::Core
+	  ${Boost_LIBRARIES}
+	  pthread
+	  )
 
 	add_executable(multicamviewer ${multicamviewersource} ${multicamviewerheader})
         #set_target_properties(multicamviewer PROPERTIES LINKER_LANGUAGE CXX)
@@ -239,6 +247,20 @@ if(WIN32)
 	link_directories(
 		${lib_dir}
 	)
+
+	#
+	# SINGLE CAMERA VIEWER
+	#
+	#
+	add_executable(singlecamviewer ${singlecamviewersource} ${singlecamviewerheader} ${ps3_header_windows} ${ps3_source_windows})
+	#
+	target_link_libraries(singlecamviewer ${OpenCV_LIBS} ${USB_LIBS})
+	# set output path
+	set_target_properties(singlecamviewer PROPERTIES
+		RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}/bin
+		RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/bin)
+	# Append "-d" to Debug Executable
+	set_target_properties(singlecamviewer PROPERTIES DEBUG_POSTFIX "-d")
 
 	#
 	# MULTI CAMERA VIEWER
