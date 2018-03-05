@@ -32,8 +32,6 @@
 * POSSIBILITY OF SUCH DAMAGE.
 ***************************************************************************************/
 
-//#include <stdafx.h>
-
 // OpenCV
 #include <opencv2/opencv.hpp>
 
@@ -339,8 +337,6 @@ int main( int argc, char** argv )
     bool writeExtrinsics = false, writePoints = false;
     bool undistortImage = false;
     int flags = 0;
-    
-	//VideoCapture capture;
 
 	bool flipVertical = false;
     bool showUndistorted = false;
@@ -426,10 +422,6 @@ int main( int argc, char** argv )
         {
             flipVertical = true;
         }
-        //else if( strcmp( s, "-V" ) == 0 )
-        //{
-        //    videofile = true;
-        //}
         else if( strcmp( s, "-o" ) == 0 )
         {
             outputFilename = argv[++i];
@@ -448,8 +440,6 @@ int main( int argc, char** argv )
         else
             return fprintf( stderr, "Unknown option %s", s ), -1;
     }
-
-	//bool captureIsOpen = false;
 
     if( inputFilename )
     {
@@ -520,8 +510,7 @@ int main( int argc, char** argv )
         if( pattern == CHESSBOARD && found) cornerSubPix( viewGray, pointbuf, Size(11,11),
             Size(-1,-1), TermCriteria( CV_TERMCRIT_EPS+CV_TERMCRIT_ITER, 30, 0.1 ));
 
-        //if( mode == CAPTURING && found && (!captureIsOpen || clock() - prevTimestamp > delay*1e-3*CLOCKS_PER_SEC) )
-		if (mode == CAPTURING && found)
+        if (mode == CAPTURING && found)
         {
             imagePoints.push_back(pointbuf);
             prevTimestamp = clock();
@@ -535,34 +524,10 @@ int main( int argc, char** argv )
 		{
 			msg = format("Input image  %d / %d : %s", i, nframes, imageList[i].c_str());
 		}
-		//else if (mode == CALIBRATED)
-		//{
-		//	msg = format("Calibrated image  %d / %d : %s", i, nframes, imageList[i].c_str());
-		//}
 		else {
 			printf("something is wrong\n");
 			exit(1);
 		}
-        //if( mode == CALIBRATED)
-        //{
-        //    if(undistortImage)
-        //        msg = format( "%d/%d Undistorted", (int)imagePoints.size(), nframes );
-        //    else
-        //        msg = format( "%d/%d", (int)imagePoints.size(), nframes );
-        //}
-
-  //      if( mode == CALIBRATED && undistortImage )
-  //      {
-  //          Mat temp = view.clone();
-  //          //undistort(temp, view, cameraMatrix, distCoeffs);
-
-		//	Mat map1, map2;
-		//	
-		//	initUndistortRectifyMap(cameraMatrix, distCoeffs, Mat(), getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 0.0), imageSize, CV_16SC2, map1, map2);
-		//	//remap(temp, view, map1, map2, INTER_LINEAR);
-		//	undistort(temp, view, cameraMatrix, distCoeffs, getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1.0));
-		//}
-
 
 		int baseLine = 0;
 		Size textSize = getTextSize(msg, 1, 1, 1, &baseLine);
@@ -577,12 +542,6 @@ int main( int argc, char** argv )
 
         if( key == 'u' && mode == CALIBRATED )
             undistortImage = !undistortImage;
-
-        //if(key == 'g' )
-        //{
-        //    mode = CAPTURING;
-        //    imagePoints.clear();
-        //}
 
         if( mode == CAPTURING && imagePoints.size() >= (unsigned)nframes )
         {
@@ -599,15 +558,6 @@ int main( int argc, char** argv )
     if( showUndistorted )
     {
         Mat view, rview, map1, map2;
-        //initUndistortRectifyMap(cameraMatrix, distCoeffs, Mat(),
-        //                        getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1.0, imageSize, 0),
-        //                        imageSize, CV_16SC2, map1, map2);
-
-		
-		//Mat newCamMat;
-		//fisheye::estimateNewCameraMatrixForUndistortRectify(cameraMatrix, distCoeffs, imageSize, Matx33d::eye(), newCamMat, 0);
-		//fisheye::initUndistortRectifyMap(cameraMatrix, distCoeffs, Matx33d::eye(), newCamMat, imageSize, CV_16SC2, map1, map2);
-
 
         for( i = 0; i < (int)imageList.size(); i++ )
         {
@@ -616,11 +566,20 @@ int main( int argc, char** argv )
                 continue;
 
 			Mat temp = view.clone();
-			Mat map1, map2;
-			initUndistortRectifyMap(cameraMatrix, distCoeffs, Mat(), getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 0.0), imageSize, CV_16SC2, map1, map2);
-			
-			Mat unistortedImage = view.clone();
-			undistort(temp, unistortedImage, cameraMatrix, distCoeffs, getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1.0));
+			Mat undistortedImage = view.clone();
+
+			//float alpha = 0.0; // returns undistorted image with minimum unwanted pixels
+			float alpha = 1.0; // all pixels are retained with some extra black images
+
+			cv::Mat roi = getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, alpha); // compute region of interest for undistortion using specified alpha
+
+			// Option A: call undistort directly
+			undistort(temp, undistortedImage, cameraMatrix, distCoeffs, roi);
+
+			// Option B : initialize and apply remap
+			//Mat mapx, mapy;
+			//initUndistortRectifyMap(cameraMatrix, distCoeffs, Mat(), roi, imageSize, CV_16SC2, mapx, mapy);
+			//remap(temp, undistortedImage, mapx, mapy, INTER_LINEAR);
 
 			string msg;
 			msg = format("%d/%d Undistorted", (int)imagePoints.size(), nframes);
@@ -630,7 +589,7 @@ int main( int argc, char** argv )
 			Point textOrigin(view.cols - 2 * textSize.width - 10, view.rows - 2 * baseLine - 10);
 			putText(view, msg, textOrigin, 1, 1, mode != CALIBRATED ? Scalar(0, 0, 255) : Scalar(0, 255, 0));
 
-            imshow("Image View", unistortedImage);
+            imshow("Image View", undistortedImage);
             int c = 0xff & waitKey();
             if( (c & 255) == 27 || c == 'q' || c == 'Q' )
                 break;
