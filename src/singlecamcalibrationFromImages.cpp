@@ -32,8 +32,10 @@
 * POSSIBILITY OF SUCH DAMAGE.
 ***************************************************************************************/
 
-#include <stdafx.h>
-#include "ThreadCamera.h"
+//#include <stdafx.h>
+
+// OpenCV
+#include <opencv2/opencv.hpp>
 
 #undef min
 #undef max
@@ -44,7 +46,7 @@ using namespace std;
 
 const char * usage =
 " \nexample command line for calibration from a live feed.\n"
-"   singlecamcalibration.exe -useSonyEye -w 9 -h 6 -pt chessboard -n 15 -d 2000 -o mycam -op -oe\n"
+"   singlecamcalibration.exe -w 9 -h 6 -pt chessboard -n 15 -d 2000 -o mycam -op -oe\n"
 " \n"
 " example command line for calibration from a list of stored images:\n"
 "   imagelist_creator image_list.xml *.png\n"
@@ -303,6 +305,8 @@ static bool runAndSave(const string& outputFilename,
     vector<float> reprojErrs;
     double totalAvgErr = 0;
 
+	printf("Performing calibration using %d detected checkerboards in images of size %d x %d. Checkerboard square size %.5f mm\n", imagePoints.size(), imageSize.width, imageSize.height, squareSize);
+
     bool ok = runCalibration(imagePoints, imageSize, boardSize, patternType, squareSize,
                    aspectRatio, flags, cameraMatrix, distCoeffs,
                    rvecs, tvecs, reprojErrs, totalAvgErr);
@@ -336,11 +340,9 @@ int main( int argc, char** argv )
     bool undistortImage = false;
     int flags = 0;
     
-	VideoCapture capture;
-	ThreadCamera *pseye;
+	//VideoCapture capture;
 
-
-    bool flipVertical = false;
+	bool flipVertical = false;
     bool showUndistorted = false;
     bool videofile = false;
     int delay = 1000;
@@ -351,7 +353,6 @@ int main( int argc, char** argv )
     vector<string> imageList;
     Pattern pattern = CHESSBOARD;
 
-	bool useEyeCam = false;
 
     if( argc < 2 )
     {
@@ -425,10 +426,10 @@ int main( int argc, char** argv )
         {
             flipVertical = true;
         }
-        else if( strcmp( s, "-V" ) == 0 )
-        {
-            videofile = true;
-        }
+        //else if( strcmp( s, "-V" ) == 0 )
+        //{
+        //    videofile = true;
+        //}
         else if( strcmp( s, "-o" ) == 0 )
         {
             outputFilename = argv[++i];
@@ -444,88 +445,41 @@ int main( int argc, char** argv )
             else
                 inputFilename = s;
         }
-		else if (strcmp(s, "-useSonyEye") == 0 )
-		{
-			useEyeCam = true;
-		}
         else
             return fprintf( stderr, "Unknown option %s", s ), -1;
     }
 
-	bool captureIsOpen = false;
+	//bool captureIsOpen = false;
 
     if( inputFilename )
     {
-        if( !videofile && readStringList(inputFilename, imageList) )
+		if (readStringList(inputFilename, imageList))
+		{
+			printf("Using image list : '%s' as input\n", inputFilename);
             mode = CAPTURING;
+		}
         else
-            capture.open(inputFilename);
+			return fprintf(stderr, "Could not initialize file list '%s'\n", inputFilename), -2;
     }
 	else
+		return fprintf(stderr, "No image list given\n"), -2;
+
+	if (!imageList.empty())
 	{
-		if (useEyeCam)
-			pseye = new ThreadCamera();
-		else
-			capture.open(cameraId);
-	}
-    
-	if (useEyeCam)
-	{
-		int camwidth = 640;
-		int camheight = 480;
-		int framerate = 60;
-
-		if (!pseye->initialize(0, camwidth, camheight,3, framerate))
-			return fprintf(stderr, "Could not initialize Sony Eye Cam ! \n"), -2;
-		else
-		{
-			pseye->startCapture();
-			
-			Sleep(500);
-
-			pseye->_autogain = true;
-			pseye->_autowhitebalance = true;
-			pseye->updateCameraSettings();
-
-			Sleep(500);
-		}
+		printf("Image list containing %d images\n", imageList.size());
+        nframes = (int)imageList.size();
 	}
 	else
-	{
-		if (!capture.isOpened() && imageList.empty())
-			return fprintf(stderr, "Could not initialize video (%d) capture\n", cameraId), -2;
-		else
-			printf("%s", liveCaptureHelp);
-	}
-
-	captureIsOpen = true;
-
-
-    if( !imageList.empty() )
-        nframes = (int)imageList.size();
+		return fprintf(stderr, "Image list is empty\n"), -2;
 
     namedWindow( "Image View", 1 );
 
     for(i = 0;;i++)
     {
         Mat view, viewGray;
-        bool blink = false;
-
-		if (useEyeCam)
-		{
-			Mat view0;
-			pseye->receiveFrameCopy(view0);
-			view0.copyTo(view);
-			
-		}
-		else if( capture.isOpened() )
-        {
-            Mat view0;
-            capture >> view0;
-            view0.copyTo(view);
-        }
-        else if( i < (int)imageList.size() )
-            view = imread(imageList[i], 1);
+        
+		printf("Reading image %s..\n", imageList[i].c_str());
+		view = imread(imageList[i], 1);
 
         if(!view.data)
         {
@@ -566,59 +520,57 @@ int main( int argc, char** argv )
         if( pattern == CHESSBOARD && found) cornerSubPix( viewGray, pointbuf, Size(11,11),
             Size(-1,-1), TermCriteria( CV_TERMCRIT_EPS+CV_TERMCRIT_ITER, 30, 0.1 ));
 
-        if( mode == CAPTURING && found &&
-           (!captureIsOpen || clock() - prevTimestamp > delay*1e-3*CLOCKS_PER_SEC) )
+        //if( mode == CAPTURING && found && (!captureIsOpen || clock() - prevTimestamp > delay*1e-3*CLOCKS_PER_SEC) )
+		if (mode == CAPTURING && found)
         {
             imagePoints.push_back(pointbuf);
             prevTimestamp = clock();
-            blink = captureIsOpen;
         }
 
         if(found)
             drawChessboardCorners( view, boardSize, Mat(pointbuf), found );
+		        		
+		string msg;
+		if (mode == CAPTURING)
+		{
+			msg = format("Input image  %d / %d : %s", i, nframes, imageList[i].c_str());
+		}
+		//else if (mode == CALIBRATED)
+		//{
+		//	msg = format("Calibrated image  %d / %d : %s", i, nframes, imageList[i].c_str());
+		//}
+		else {
+			printf("something is wrong\n");
+			exit(1);
+		}
+        //if( mode == CALIBRATED)
+        //{
+        //    if(undistortImage)
+        //        msg = format( "%d/%d Undistorted", (int)imagePoints.size(), nframes );
+        //    else
+        //        msg = format( "%d/%d", (int)imagePoints.size(), nframes );
+        //}
 
-        string msg = mode == CAPTURING ? "100/100" :
-            mode == CALIBRATED ? "Calibrated" : "Press 'g' to start";
-        int baseLine = 0;
-        Size textSize = getTextSize(msg, 1, 1, 1, &baseLine);
-        Point textOrigin(view.cols - 2*textSize.width - 10, view.rows - 2*baseLine - 10);
+  //      if( mode == CALIBRATED && undistortImage )
+  //      {
+  //          Mat temp = view.clone();
+  //          //undistort(temp, view, cameraMatrix, distCoeffs);
 
-        if( mode == CAPTURING )
-        {
-            if(undistortImage)
-                msg = format( "%d/%d Undist", (int)imagePoints.size(), nframes );
-            else
-                msg = format( "%d/%d", (int)imagePoints.size(), nframes );
-        }
-
-        putText( view, msg, textOrigin, 1, 1,
-                 mode != CALIBRATED ? Scalar(0,0,255) : Scalar(0,255,0));
-
-        if( blink )
-            bitwise_not(view, view);
-
-        if( mode == CALIBRATED && undistortImage )
-        {
-            Mat temp = view.clone();
-            //undistort(temp, view, cameraMatrix, distCoeffs);
-
-			Mat map1, map2;
-			
-			initUndistortRectifyMap(cameraMatrix, distCoeffs, Mat(), getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 0.0), imageSize, CV_16SC2, map1, map2);
-			//remap(temp, view, map1, map2, INTER_LINEAR);
-			undistort(temp, view, cameraMatrix, distCoeffs, getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1.0));
+		//	Mat map1, map2;
+		//	
+		//	initUndistortRectifyMap(cameraMatrix, distCoeffs, Mat(), getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 0.0), imageSize, CV_16SC2, map1, map2);
+		//	//remap(temp, view, map1, map2, INTER_LINEAR);
+		//	undistort(temp, view, cameraMatrix, distCoeffs, getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1.0));
+		//}
 
 
-			//Mat newCamMat;
-			//fisheye::estimateNewCameraMatrixForUndistortRectify(cameraMatrix, distCoeffs, imageSize, Matx33d::eye(), newCamMat, 0);
-			//fisheye::initUndistortRectifyMap(cameraMatrix, distCoeffs, Matx33d::eye(), newCamMat, imageSize, CV_16SC2, map1, map2);
-
-			//fisheye::undistortImage(temp, view, cameraMatrix, distCoeffs);
-
-        }
+		int baseLine = 0;
+		Size textSize = getTextSize(msg, 1, 1, 1, &baseLine);
+		Point textOrigin(view.cols - 2 * textSize.width - 10, view.rows - 2 * baseLine - 10);
+		putText(view, msg, textOrigin, 1, 1, mode != CALIBRATED ? Scalar(0, 0, 255) : Scalar(0, 255, 0));
 
         imshow("Image View", view);
-        int key = 0xff & waitKey(captureIsOpen ? 50 : 500);
+        int key = 0xff & waitKey(500);
 
         if( (key & 255) == 27 )
             break;
@@ -626,11 +578,11 @@ int main( int argc, char** argv )
         if( key == 'u' && mode == CALIBRATED )
             undistortImage = !undistortImage;
 
-        if(captureIsOpen && key == 'g' )
-        {
-            mode = CAPTURING;
-            imagePoints.clear();
-        }
+        //if(key == 'g' )
+        //{
+        //    mode = CAPTURING;
+        //    imagePoints.clear();
+        //}
 
         if( mode == CAPTURING && imagePoints.size() >= (unsigned)nframes )
         {
@@ -641,21 +593,20 @@ int main( int argc, char** argv )
                 mode = CALIBRATED;
             else
                 mode = DETECTION;
-            if( !captureIsOpen)
-                break;
         }
     }
 
-    if( !captureIsOpen && showUndistorted )
+    if( showUndistorted )
     {
         Mat view, rview, map1, map2;
         //initUndistortRectifyMap(cameraMatrix, distCoeffs, Mat(),
         //                        getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1.0, imageSize, 0),
         //                        imageSize, CV_16SC2, map1, map2);
 
-		Mat newCamMat;
-		fisheye::estimateNewCameraMatrixForUndistortRectify(cameraMatrix, distCoeffs, imageSize, Matx33d::eye(), newCamMat, 0);
-		fisheye::initUndistortRectifyMap(cameraMatrix, distCoeffs, Matx33d::eye(), newCamMat, imageSize, CV_16SC2, map1, map2);
+		
+		//Mat newCamMat;
+		//fisheye::estimateNewCameraMatrixForUndistortRectify(cameraMatrix, distCoeffs, imageSize, Matx33d::eye(), newCamMat, 0);
+		//fisheye::initUndistortRectifyMap(cameraMatrix, distCoeffs, Matx33d::eye(), newCamMat, imageSize, CV_16SC2, map1, map2);
 
 
         for( i = 0; i < (int)imageList.size(); i++ )
@@ -663,29 +614,28 @@ int main( int argc, char** argv )
             view = imread(imageList[i], 1);
             if(!view.data)
                 continue;
-            
-			//undistort( view, rview, cameraMatrix, distCoeffs, cameraMatrix );
-            
+
+			Mat temp = view.clone();
+			Mat map1, map2;
+			initUndistortRectifyMap(cameraMatrix, distCoeffs, Mat(), getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 0.0), imageSize, CV_16SC2, map1, map2);
 			
+			Mat unistortedImage = view.clone();
+			undistort(temp, unistortedImage, cameraMatrix, distCoeffs, getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1.0));
 
-			//remap(view, rview, map1, map2, INTER_LINEAR);
+			string msg;
+			msg = format("%d/%d Undistorted", (int)imagePoints.size(), nframes);
 
-			fisheye::undistortImage(view, rview, cameraMatrix, distCoeffs);
+			int baseLine = 0;
+			Size textSize = getTextSize(msg, 1, 1, 1, &baseLine);
+			Point textOrigin(view.cols - 2 * textSize.width - 10, view.rows - 2 * baseLine - 10);
+			putText(view, msg, textOrigin, 1, 1, mode != CALIBRATED ? Scalar(0, 0, 255) : Scalar(0, 255, 0));
 
-			//remap(view, rview, map1, map2, INTER_LINEAR);
-
-            imshow("Image View", rview);
+            imshow("Image View", unistortedImage);
             int c = 0xff & waitKey();
             if( (c & 255) == 27 || c == 'q' || c == 'Q' )
                 break;
         }
     }
-
-	if (useEyeCam)
-	{
-		pseye->deinitialize();
-		delete pseye;
-	}
 
     return 0;
 }

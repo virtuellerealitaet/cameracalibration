@@ -85,46 +85,6 @@
     #define IM_MAX(_A,_B)       (((_A) >= (_B)) ? (_A) : (_B))
 #endif
 
-#ifdef WIN32
-
-    // Windows API
-    //#include <Windows.h>
-    //#include <windowsx.h>
-    //#include <direct.h>
-    //#include <mmsystem.h>
-
-    //// windows dialog includes
-    //#pragma region Includes and Manifest Dependencies
-    //#include <windows.h>
-    //#include <windowsx.h>
-    //#include <strsafe.h>
-    //#include <new>
-    //#include <shlobj.h>
-    //#include <shlwapi.h>
-    //#include <atlstr.h>
-    //#include <atlconv.h>
-
-#endif
-
-
-// system includes
-
-//#include <iostream>     // std::cout
-//#include <iomanip>      // std::setprecision
-//#include <fstream>      // fopen
-//#include <string>       // std::string
-//#include <sstream>      // std::stringstream
-//#include <vector>       // std::vector
-//#include <map>          // std::map
-//#include <unordered_map>
-//#include <set>
-//#include <typeinfo>
-//#include <algorithm>
-//#include <iterator>
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <ctype.h>
-#include <thread>
 
 // OpenCV
 #include <opencv2/opencv.hpp>
@@ -146,7 +106,4 @@ typedef uint8_t PIXELVALUE;
 #define  LOGERROR(...)		{	printf("ERROR : "); printf(__VA_ARGS__);}
 #endif
 
-static void Sleep(int milliseconds)
-{
-    std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
-}
+
