@@ -1,10 +1,12 @@
 
-#include <cambox.h>
 
 #include <iostream>
 #include <vector>
 
 #include <Windows.h>
+
+// OpenCV
+#include <opencv2/opencv.hpp>
 
 SHORT WINAPI GetAsyncKeyState(
 	_In_ int vKey
