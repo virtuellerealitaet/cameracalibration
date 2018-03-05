@@ -251,6 +251,8 @@ int main(int argc, char *argv[])
 
 	int frameNumber = 0;
 
+	int trackingMode = 1; // 0 = single tracking mode, 1 = dual tracking mode
+
 	while (true)
 	{
 		while (true)
@@ -271,46 +273,110 @@ int main(int argc, char *argv[])
 		cv::Mat undistortedImage = view.clone();
 		cv::remap(view, undistortedImage, mapx, mapy, INTER_LINEAR);
 
-
-
-		// detect checkerboard
-		vector<Point2f> pointbuf;
-		bool found;
-		switch (c.pattern)
+		if (trackingMode == 0)
 		{
-			case CHESSBOARD:
-				found = findChessboardCorners(undistortedImage, c.boardSize, pointbuf,
-					CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FAST_CHECK | CV_CALIB_CB_NORMALIZE_IMAGE);
-				break;
-			case CIRCLES_GRID:
-				found = findCirclesGrid(view, c.boardSize, pointbuf);
-				break;
-			case ASYMMETRIC_CIRCLES_GRID:
-				found = findCirclesGrid(view, c.boardSize, pointbuf, CALIB_CB_ASYMMETRIC_GRID);
-				break;
-			default:
-				return fprintf(stderr, "Unknown pattern type\n"), -1;
+			// detect checkerboard
+			vector<Point2f> pointbuf;
+			bool found;
+			switch (c.pattern)
+			{
+				case CHESSBOARD:
+					found = findChessboardCorners(undistortedImage, c.boardSize, pointbuf,
+						CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FAST_CHECK | CV_CALIB_CB_NORMALIZE_IMAGE);
+					break;
+				case CIRCLES_GRID:
+					found = findCirclesGrid(view, c.boardSize, pointbuf);
+					break;
+				case ASYMMETRIC_CIRCLES_GRID:
+					found = findCirclesGrid(view, c.boardSize, pointbuf, CALIB_CB_ASYMMETRIC_GRID);
+					break;
+				default:
+					return fprintf(stderr, "Unknown pattern type\n"), -1;
+			}
+
+			// improve the found corners' coordinate accuracy
+			bool refinement = true;
+			if (refinement)
+			{
+				Mat viewGray;
+				cvtColor(undistortedImage, viewGray, CV_BGR2GRAY);
+				if (c.pattern == CHESSBOARD && found) cornerSubPix(viewGray, pointbuf, Size(11, 11),
+					Size(-1, -1), TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
+			}
+		
+			if (found)
+			{
+				drawChessboardCorners(undistortedImage, c.boardSize, Mat(pointbuf), found);
+
+				cv::Mat rotationVector, translationVector;
+				computeExtrinsics(pointbuf, c, c.boardSize, c.squareSize, rotationVector, translationVector);
+
+				drawAxis(undistortedImage, c.cameraMatrix, c.distortionCoefficient, rotationVector, translationVector, 2 * c.squareSize);
+			}
 		}
-
-		// improve the found corners' coordinate accuracy
-		bool refinement = true;
-		if (refinement)
+		else if (trackingMode == 1)
 		{
-			Mat viewGray;
-			cvtColor(undistortedImage, viewGray, CV_BGR2GRAY);
-			if (c.pattern == CHESSBOARD && found) cornerSubPix(viewGray, pointbuf, Size(11, 11),
-				Size(-1, -1), TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
-		}
+
+			if (undistortedImage.empty())
+				continue;
+
+			cv::Mat rotationVector[2], translationVector[2];
+
+			cv::Mat blacked[2];
+			
+			blacked[0] = undistortedImage.clone();
+
+			cv::Rect roi_rect(0, 0, undistortedImage.size().width/2, undistortedImage.size().height);
+			cv::Mat roiLeft(blacked[0], roi_rect);
+			roiLeft.setTo(Scalar(0));
 
 
-		if (found)
-		{
-			drawChessboardCorners(undistortedImage, c.boardSize, Mat(pointbuf), found);
+			//cv::Mat leftRoiBlack(blacked[0], cv::Rect(0, 0, cameraImageSize.width / 2, cameraImageSize.height));
+			//{
+			//	cv::Mat &black = blacked[0];
+			//	black(leftRoiBlack) = cv::Mat(leftRoiBlack.size(), CV_8UC3);
+			//}
 
-			cv::Mat rotationVector, translationVector;
-			computeExtrinsics(pointbuf, c, c.boardSize, c.squareSize, rotationVector, translationVector);
+			blacked[1] = undistortedImage.clone();
+			roi_rect = cv::Rect(undistortedImage.size().width / 2, 0, undistortedImage.size().width / 2, undistortedImage.size().height);
+			cv::Mat roiRight(blacked[1], roi_rect);
+			roiRight.setTo(Scalar(0));
+			//cv::Mat rightRoiBlack(blacked[1], cv::Rect(cameraImageSize.width / 2, 0, cameraImageSize.width / 2, cameraImageSize.height));
+			//{
+			//	cv::Mat &black = blacked[1];
+			//	black(rightRoiBlack).setTo(Scalar(0));
+			//}
 
-			drawAxis(undistortedImage, c.cameraMatrix, c.distortionCoefficient, rotationVector, translationVector, 2 * c.squareSize);
+			// find both checkerboards
+			for (int i = 0; i < 2; i++)
+			{
+				// detect checkerboard
+				vector<Point2f> pointbuf;
+				bool found = found = findChessboardCorners(blacked[i], c.boardSize, pointbuf,CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FAST_CHECK | CV_CALIB_CB_NORMALIZE_IMAGE);
+			
+				// improve the found corners' coordinate accuracy
+				bool refinement = true;
+				if (refinement)
+				{
+					Mat viewGray;
+					cvtColor(blacked[i], viewGray, CV_BGR2GRAY);
+					if (c.pattern == CHESSBOARD && found) cornerSubPix(viewGray, pointbuf, Size(11, 11),
+						Size(-1, -1), TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
+				}
+
+				if (found)
+				{
+					drawChessboardCorners(undistortedImage, c.boardSize, Mat(pointbuf), found);
+								
+					computeExtrinsics(pointbuf, c, c.boardSize, c.squareSize, rotationVector[i], translationVector[i]);
+
+					drawAxis(undistortedImage, c.cameraMatrix, c.distortionCoefficient, rotationVector[i], translationVector[i], 2 * c.squareSize);
+				}
+			}
+
+			// estimate transform between both
+
+			// draw distance line
 		}
 
 		// show image
