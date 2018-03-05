@@ -7,6 +7,7 @@
 
 // OpenCV
 #include <opencv2/opencv.hpp>
+#include <opencv2/aruco.hpp>
 
 using namespace cv;
 using namespace std;
@@ -15,14 +16,8 @@ SHORT WINAPI GetAsyncKeyState(
 	_In_ int vKey
 );
 
-//static void loadCameraParams(const string& filename,
-//	Size imageSize, Size boardSize,
-//	float squareSize, float aspectRatio, int flags,
-//	const Mat& cameraMatrix, const Mat& distCoeffs,
-//	const vector<Mat>& rvecs, const vector<Mat>& tvecs,
-//	const vector<float>& reprojErrs,
-//	const vector<vector<Point2f> >& imagePoints,
-//	double totalAvgErr)
+
+enum Pattern { CHESSBOARD, CIRCLES_GRID, ASYMMETRIC_CIRCLES_GRID };
 
 struct CameraCalibration
 {
@@ -36,9 +31,38 @@ struct CameraCalibration
 	Mat cameraMatrix;
 	Mat distortionCoefficient;
 
-	cv::Size imageSize;
+	cv::Size imageSize, boardSize;
+
+	Pattern pattern = CHESSBOARD;
+	vector<vector<Point3f> > objectPoints;
 
 };
+
+static void calcChessboardCorners(Size boardSize, float squareSize, vector<Point3f>& corners, Pattern patternType = CHESSBOARD)
+{
+	corners.resize(0);
+
+	switch (patternType)
+	{
+	case CHESSBOARD:
+	case CIRCLES_GRID:
+		for (int i = 0; i < boardSize.height; i++)
+			for (int j = 0; j < boardSize.width; j++)
+				corners.push_back(Point3f(float(j*squareSize),
+					float(i*squareSize), 0));
+		break;
+
+	case ASYMMETRIC_CIRCLES_GRID:
+		for (int i = 0; i < boardSize.height; i++)
+			for (int j = 0; j < boardSize.width; j++)
+				corners.push_back(Point3f(float((2 * j + i % 2)*squareSize),
+					float(i*squareSize), 0));
+		break;
+
+	default:
+		CV_Error(CV_StsBadArg, "Unknown pattern type\n");
+	}
+}
 
 static bool loadCameraParams(const string& filename, CameraCalibration& c)
 {
@@ -58,11 +82,107 @@ static bool loadCameraParams(const string& filename, CameraCalibration& c)
 	fs["distortion_coefficients"] >> c.distortionCoefficient;
 
 	c.imageSize = cv::Size(c.calibrationImageWidth, c.calibrationImageHeight);
+	c.boardSize = cv::Size(c.numberOfCrossPointsInWidth, c.numberOfCrossPointsInHeight);
+
+	c.objectPoints = vector<vector<Point3f>>(1);
+	
+	calcChessboardCorners(c.boardSize, c.squareSize, c.objectPoints[0], c.pattern);
 
 	return true;
 }
 
+void drawAxis(cv::Mat _image, cv::Mat _cameraMatrix, cv::Mat _distCoeffs,
+	cv::Mat _rvec, cv::Mat _tvec, float length) {
 
+	CV_Assert(_image.total() != 0 && (_image.channels() == 1 || _image.channels() == 3));
+	CV_Assert(length > 0);
+
+	// project axis points
+	vector< Point3f > axisPoints;
+	axisPoints.push_back(Point3f(0, 0, 0));
+	axisPoints.push_back(Point3f(length, 0, 0));
+	axisPoints.push_back(Point3f(0, length, 0));
+	axisPoints.push_back(Point3f(0, 0, length));
+	vector< Point2f > imagePoints;
+	projectPoints(axisPoints, _rvec, _tvec, _cameraMatrix, _distCoeffs, imagePoints);
+
+	// draw axis lines
+	line(_image, imagePoints[0], imagePoints[1], Scalar(0, 0, 255), 3);
+	line(_image, imagePoints[0], imagePoints[2], Scalar(0, 255, 0), 3);
+	line(_image, imagePoints[0], imagePoints[3], Scalar(255, 0, 0), 3);
+		
+	cv::String msg = format("world origin X %.2f, Y %.2f, Z %.2f", _tvec.at<double>(0), _tvec.at<double>(1), _tvec.at<double>(2));
+	cv::Point textOrigin = cv::Point(imagePoints[0]) + cv::Point(0, 0);
+	
+	int baseLine = 0;
+	Size textSize = getTextSize(msg, 1, 1, 1, &baseLine);
+
+	// black background behind text
+	int x, y, w, h;
+	x = std::max(0,textOrigin.x);
+	y = std::max(0, -10 + textOrigin.y);
+	w = std::max(0, textSize.width);
+	h = std::max(0, 20);
+
+	w = std::min(_image.cols-x, w);
+	h = std::min(_image.rows-y, h);
+		
+	cv::Rect roi_rect(x, y, w, h);
+
+	{
+		cv::Mat roi(_image, roi_rect);
+		roi.setTo(Scalar(0));
+		putText(_image, msg, textOrigin, 1, 1, Scalar(0, 255, 0));
+	}
+
+	
+}
+
+void computeExtrinsics(vector<Point2f> &pointbuf, CameraCalibration &calib, cv::Size &boardSize, float squareSize, cv::Mat &rotationVector, cv::Mat &translationVector)
+{
+
+	vector<Point3f> objectPoints;
+	calcChessboardCorners(boardSize, squareSize, objectPoints);
+
+	vector<Point2f> objectPointsPlanar;
+	for (size_t i = 0; i < objectPoints.size(); i++)
+	{
+		objectPointsPlanar.push_back(Point2f(objectPoints[i].x, objectPoints[i].y));
+	}
+
+	vector<Point2f> imagePoints;
+
+	// not required if we are working on an undistorted frame
+	undistortPoints(pointbuf, imagePoints, calib.cameraMatrix, calib.distortionCoefficient);
+
+	Mat H = findHomography(objectPointsPlanar, imagePoints);
+	//cout << "H:\n" << H << endl;
+	// Normalization to ensure that ||c1|| = 1
+	double norm = sqrt(H.at<double>(0, 0)*H.at<double>(0, 0) +
+		H.at<double>(1, 0)*H.at<double>(1, 0) +
+		H.at<double>(2, 0)*H.at<double>(2, 0));
+	H /= norm;
+	Mat c1 = H.col(0);
+	Mat c2 = H.col(1);
+	Mat c3 = c1.cross(c2);
+	Mat tvec = H.col(2);
+	Mat R(3, 3, CV_64F);
+	for (int i = 0; i < 3; i++)
+	{
+		R.at<double>(i, 0) = c1.at<double>(i, 0);
+		R.at<double>(i, 1) = c2.at<double>(i, 0);
+		R.at<double>(i, 2) = c3.at<double>(i, 0);
+	}
+	//cout << "R (before polar decomposition):\n" << R << "\ndet(R): " << determinant(R) << endl;
+	Mat W, U, Vt;
+	SVDecomp(R, W, U, Vt);
+	R = U*Vt;
+	//cout << "R (after polar decomposition):\n" << R << "\ndet(R): " << determinant(R) << endl;
+	
+	Rodrigues(R, rotationVector);
+	translationVector = tvec;
+
+}
 
 int main(int argc, char *argv[])
 {
@@ -86,12 +206,8 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	// setup undistortion
-	//float alpha = 0.0; // returns undistorted image with minimum unwanted pixels
-	float alpha = 1.0; // all pixels are retained with some extra black images
-	cv::Mat roi = getOptimalNewCameraMatrix(c.cameraMatrix, c.distortionCoefficient, c.imageSize, alpha); // compute region of interest for undistortion using specified alpha
-	Mat mapx, mapy;
-	initUndistortRectifyMap(c.cameraMatrix, c.distortionCoefficient, Mat(), roi, c.imageSize, CV_16SC2, mapx, mapy);
+	c.squareSize = 6.f;
+
 
 	// open OpenCV camera
 	int cameraId = 0;
@@ -104,6 +220,7 @@ int main(int argc, char *argv[])
 
 	camera.set(CV_CAP_PROP_FRAME_WIDTH, c.calibrationImageWidth);
 	camera.set(CV_CAP_PROP_FRAME_HEIGHT, c.calibrationImageHeight);
+	
 	printf("received camera resolution : %d x %d\n", (int)camera.get(CV_CAP_PROP_FRAME_WIDTH), (int)camera.get(CV_CAP_PROP_FRAME_HEIGHT));
 	
 	if (c.calibrationImageWidth != (int)camera.get(CV_CAP_PROP_FRAME_WIDTH) || c.calibrationImageHeight != (int)camera.get(CV_CAP_PROP_FRAME_HEIGHT))
@@ -112,6 +229,17 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
+	Size cameraImageSize = Size((int)camera.get(CV_CAP_PROP_FRAME_WIDTH), (int)camera.get(CV_CAP_PROP_FRAME_HEIGHT));
+	
+	//Size undistortedSize = cameraImageSize;
+	Size undistortedSize = c.imageSize;
+
+	// setup undistortion
+	float alpha = 0.0; // returns undistorted image with minimum unwanted pixels
+	//float alpha = 1.0; // all pixels are retained with some extra black images
+	cv::Mat roi = getOptimalNewCameraMatrix(c.cameraMatrix, c.distortionCoefficient, undistortedSize, alpha); // compute region of interest for undistortion using specified alpha
+	Mat mapx, mapy;
+	initUndistortRectifyMap(c.cameraMatrix, c.distortionCoefficient, Mat(), roi, undistortedSize, CV_16SC2, mapx, mapy);
 
 
 
@@ -123,8 +251,8 @@ int main(int argc, char *argv[])
 
 	int frameNumber = 0;
 
-    while (true)
-    {
+	while (true)
+	{
 		while (true)
 		{
 			camera >> view;
@@ -143,8 +271,47 @@ int main(int argc, char *argv[])
 		cv::Mat undistortedImage = view.clone();
 		cv::remap(view, undistortedImage, mapx, mapy, INTER_LINEAR);
 
-		// detect checkerboard
 
+
+		// detect checkerboard
+		vector<Point2f> pointbuf;
+		bool found;
+		switch (c.pattern)
+		{
+			case CHESSBOARD:
+				found = findChessboardCorners(undistortedImage, c.boardSize, pointbuf,
+					CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FAST_CHECK | CV_CALIB_CB_NORMALIZE_IMAGE);
+				break;
+			case CIRCLES_GRID:
+				found = findCirclesGrid(view, c.boardSize, pointbuf);
+				break;
+			case ASYMMETRIC_CIRCLES_GRID:
+				found = findCirclesGrid(view, c.boardSize, pointbuf, CALIB_CB_ASYMMETRIC_GRID);
+				break;
+			default:
+				return fprintf(stderr, "Unknown pattern type\n"), -1;
+		}
+
+		// improve the found corners' coordinate accuracy
+		bool refinement = true;
+		if (refinement)
+		{
+			Mat viewGray;
+			cvtColor(undistortedImage, viewGray, CV_BGR2GRAY);
+			if (c.pattern == CHESSBOARD && found) cornerSubPix(viewGray, pointbuf, Size(11, 11),
+				Size(-1, -1), TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
+		}
+
+
+		if (found)
+		{
+			drawChessboardCorners(undistortedImage, c.boardSize, Mat(pointbuf), found);
+
+			cv::Mat rotationVector, translationVector;
+			computeExtrinsics(pointbuf, c, c.boardSize, c.squareSize, rotationVector, translationVector);
+
+			drawAxis(undistortedImage, c.cameraMatrix, c.distortionCoefficient, rotationVector, translationVector, 2 * c.squareSize);
+		}
 
 		// show image
 		cv::imshow(windowName, undistortedImage);
@@ -156,14 +323,9 @@ int main(int argc, char *argv[])
     }
 
 	std::cout << "\nCamera loop stopped.\n\n";
-
 	std::cout << "Disconnecting camera ...\n";
-
-	// deinitialize camera
 	camera.release();
-
     cv::destroyAllWindows();
-
 	std::cout << "done.\n\nRegular program exit.\n" << std::endl;
 
     return 0;

@@ -31,8 +31,12 @@ int main(int argc, char *argv[])
 	cv::VideoCapture camera(0);
 
 	int camera_width, camera_height;
-	camera_width = 1920;
-	camera_height = 1080;
+	
+	//camera_width = 1920;
+	//camera_height = 1080;
+
+	camera_width = 640;
+	camera_height = 480;
 
 	camera.set(CV_CAP_PROP_FRAME_WIDTH, camera_width);
 	camera.set(CV_CAP_PROP_FRAME_HEIGHT, camera_height);

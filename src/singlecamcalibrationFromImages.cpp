@@ -464,7 +464,7 @@ int main( int argc, char** argv )
 
     namedWindow( "Image View", 1 );
 
-    for(i = 0;;i++)
+    for(i = 0;i < nframes; i++)
     {
         Mat view, viewGray;
         
@@ -473,12 +473,7 @@ int main( int argc, char** argv )
 
         if(!view.data)
         {
-            if( imagePoints.size() > 0 )
-                runAndSave(outputFilename, imagePoints, imageSize,
-                           boardSize, pattern, squareSize, aspectRatio,
-                           flags, cameraMatrix, distCoeffs,
-                           writeExtrinsics, writePoints);
-            break;
+            continue;
         }
 
         imageSize = view.size();
@@ -540,22 +535,35 @@ int main( int argc, char** argv )
         if( (key & 255) == 27 )
             break;
 
-        if( key == 'u' && mode == CALIBRATED )
-            undistortImage = !undistortImage;
 
-        if( mode == CAPTURING && imagePoints.size() >= (unsigned)nframes )
-        {
-            if( runAndSave(outputFilename, imagePoints, imageSize,
-                       boardSize, pattern, squareSize, aspectRatio,
-                       flags, cameraMatrix, distCoeffs,
-                       writeExtrinsics, writePoints))
-                mode = CALIBRATED;
-            else
-                mode = DETECTION;
-        }
+        //if( mode == CAPTURING && imagePoints.size() >= (unsigned)nframes )
+        //{
+        //    if( runAndSave(outputFilename, imagePoints, imageSize,
+        //               boardSize, pattern, squareSize, aspectRatio,
+        //               flags, cameraMatrix, distCoeffs,
+        //               writeExtrinsics, writePoints))
+        //        mode = CALIBRATED;
+        //    else
+        //        mode = DETECTION;
+        //}
     }
 
-    if( showUndistorted )
+	if (imagePoints.size() > 0)
+	{
+		if (runAndSave(outputFilename, imagePoints, imageSize,
+			boardSize, pattern, squareSize, aspectRatio,
+			flags, cameraMatrix, distCoeffs,
+			writeExtrinsics, writePoints))
+			mode = CALIBRATED;
+	}
+	else
+	{
+
+		return fprintf(stderr, "calibration procedure failed\n"), -2;
+	}
+		
+
+    if( mode == CALIBRATED &&  showUndistorted )
     {
         Mat view, rview, map1, map2;
 
