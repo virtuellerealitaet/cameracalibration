@@ -25,8 +25,7 @@ SHORT WINAPI GetAsyncKeyState(
 	_In_ int vKey
 );
 
-
-enum Pattern { CHESSBOARD, CIRCLES_GRID, ASYMMETRIC_CIRCLES_GRID };
+enum Pattern { CHESSBOARD };
 
 struct CameraCalibration
 {
@@ -44,8 +43,40 @@ struct CameraCalibration
 
 	Pattern pattern = CHESSBOARD;
 	vector<vector<Point3f> > objectPoints;
+};
+
+struct Pose
+{
+	cv::Mat rodrigesVector;
+	cv::Mat translationVector;
+	cv::Mat rotMatrix;
+
+	vector<Point2f> pointbuf;
+
+	
+	glm::vec3 translationVectorGLM;
+	glm::mat3 rotationMatrixGLM;
+
+	bool found = false; // checkerboard found
+
+	void convertOpenCVtoGLM()
+	{
+		translationVectorGLM = glm::vec3(translationVector.at<double>(0), translationVector.at<double>(1), translationVector.at<double>(2));
+		//glm::vec3 r = glm::vec3(rotationVector[0].at<double>(0), rotationVector[0].at<double>(1), rotationVector[0].at<double>(2));
+		// convert OpenCV matrix to GLM matrix
+		for (int i = 0; i < 3; i++)
+			for (int j = 0; j < 3; j++)
+				rotationMatrixGLM[i][j] = rotMatrix.at<double>(j, i);
+	}
 
 };
+
+void improveCheckerboardAccuracy(cv::Mat &img, vector<Point2f> &cornerPoints, cv::Size sz = cv::Size(11,11))
+{
+	Mat viewGray;
+	cvtColor(img, viewGray, CV_BGR2GRAY);
+	cornerSubPix(viewGray, cornerPoints, Size(11, 11), Size(-1, -1), TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
+}
 
 static void calcChessboardCorners(Size boardSize, float squareSize, vector<Point3f>& corners, Pattern patternType = CHESSBOARD)
 {
@@ -54,20 +85,11 @@ static void calcChessboardCorners(Size boardSize, float squareSize, vector<Point
 	switch (patternType)
 	{
 	case CHESSBOARD:
-	case CIRCLES_GRID:
 		for (int i = 0; i < boardSize.height; i++)
 			for (int j = 0; j < boardSize.width; j++)
 				corners.push_back(Point3f(float(j*squareSize),
 					float(i*squareSize), 0));
 		break;
-
-	case ASYMMETRIC_CIRCLES_GRID:
-		for (int i = 0; i < boardSize.height; i++)
-			for (int j = 0; j < boardSize.width; j++)
-				corners.push_back(Point3f(float((2 * j + i % 2)*squareSize),
-					float(i*squareSize), 0));
-		break;
-
 	default:
 		CV_Error(CV_StsBadArg, "Unknown pattern type\n");
 	}
@@ -125,7 +147,6 @@ void drawAxis(cv::Mat &_image, cv::Mat _cameraMatrix, cv::Mat _distCoeffs,
 	// draw cube
 
 	vector< Point3f > points;
-
 	imagePoints.clear();
 	points.clear();
 
@@ -134,36 +155,18 @@ void drawAxis(cv::Mat &_image, cv::Mat _cameraMatrix, cv::Mat _distCoeffs,
 	points.push_back(Point3f(length, 0, 0));
 	points.push_back(Point3f(length, length, 0));
 	points.push_back(Point3f(0, length, 0));
-
 	projectPoints(points, _rvec, _tvec, _cameraMatrix, _distCoeffs, imagePoints);
-		
-	//Point rook_points[1][4];
-	//rook_points[0][0] = imagePoints[0];
-	//rook_points[0][1] = imagePoints[1];
-	//rook_points[0][2] = imagePoints[2];
-	//rook_points[0][3] = imagePoints[3];
-
 	vector< Point > imgPoints;
 	imgPoints.push_back(imagePoints[0]);
 	imgPoints.push_back(imagePoints[1]);
 	imgPoints.push_back(imagePoints[2]);
 	imgPoints.push_back(imagePoints[3]);
-	
-	/*const Point* ppt[1] = { rook_points[0] };
-	int npt[] = { 20 };*/
-
 	int lineType = 8;
-
 	const cv::Point *pts = (const cv::Point*) imgPoints.data();
 	int npts = 4;
-
-	fillPoly(_image, &pts, &npts, 1, Scalar(255, 255, 255), lineType);
-
-	//cv::fillConvexPoly(_image, imagePoints, cv::Scalar(0, 255, 0), CV_FILLED);
-	//cv::fillPoly(_image, imagePoints, cv::Scalar(0, 255, 0));
+	fillPoly(_image, &pts, &npts, 1, Scalar(0, 255, 0), lineType);
 
 	float lineThickness = 2.f;
-
 	float v = length;
 
 	// draw pillars in blue
@@ -172,16 +175,12 @@ void drawAxis(cv::Mat &_image, cv::Mat _cameraMatrix, cv::Mat _distCoeffs,
 
 	points.push_back(Point3f(0, 0, 0));
 	points.push_back(Point3f(0, 0, -v));
-
 	points.push_back(Point3f(v, 0, 0));
 	points.push_back(Point3f(v, 0, -v));
-
 	points.push_back(Point3f(v, v, 0));
 	points.push_back(Point3f(v, v, -v));
-
 	points.push_back(Point3f(0, v, 0));
 	points.push_back(Point3f(0, v, -v));
-
 	projectPoints(points, _rvec, _tvec, _cameraMatrix, _distCoeffs, imagePoints);
 	line(_image, imagePoints[0], imagePoints[1], cv::Scalar(255, 0, 0), lineThickness);
 	line(_image, imagePoints[2], imagePoints[3], cv::Scalar(255, 0, 0), lineThickness);
@@ -198,9 +197,7 @@ void drawAxis(cv::Mat &_image, cv::Mat _cameraMatrix, cv::Mat _distCoeffs,
 	points.push_back(Point3f(0, v, -v));
 	points.push_back(Point3f(v, v, -v));
 	points.push_back(Point3f(v, 0, -v));
-	
 	projectPoints(points, _rvec, _tvec, _cameraMatrix, _distCoeffs, imagePoints);
-	
 	line(_image, imagePoints[0], imagePoints[1], cv::Scalar(0, 0, 255), lineThickness);
 	line(_image, imagePoints[1], imagePoints[2], cv::Scalar(0, 0, 255), lineThickness);
 	line(_image, imagePoints[2], imagePoints[3], cv::Scalar(0, 0, 255), lineThickness);
@@ -234,9 +231,8 @@ void drawAxis(cv::Mat &_image, cv::Mat _cameraMatrix, cv::Mat _distCoeffs,
 	
 }
 
-void computeExtrinsics(vector<Point2f> &pointbuf, CameraCalibration &calib, cv::Size &boardSize, float squareSize, cv::Mat &rotationVector, cv::Mat &translationVector, cv::Mat &rotMat)
+void computeExtrinsics(Pose &pose, CameraCalibration &calib, cv::Size &boardSize, float squareSize)
 {
-
 	vector<Point3f> objectPoints;
 	calcChessboardCorners(boardSize, squareSize, objectPoints);
 
@@ -249,7 +245,7 @@ void computeExtrinsics(vector<Point2f> &pointbuf, CameraCalibration &calib, cv::
 	vector<Point2f> imagePoints;
 
 	// not required if we are working on an undistorted frame
-	undistortPoints(pointbuf, imagePoints, calib.cameraMatrix, calib.distortionCoefficient);
+	undistortPoints(pose.pointbuf, imagePoints, calib.cameraMatrix, calib.distortionCoefficient);
 
 	Mat H = findHomography(objectPointsPlanar, imagePoints);
 	//cout << "H:\n" << H << endl;
@@ -274,10 +270,10 @@ void computeExtrinsics(vector<Point2f> &pointbuf, CameraCalibration &calib, cv::
 	SVDecomp(R, W, U, Vt);
 	R = U*Vt;
 	//cout << "R (after polar decomposition):\n" << R << "\ndet(R): " << determinant(R) << endl;
-	rotMat = R;
+	pose.rotMatrix = R;
 
-	Rodrigues(R, rotationVector);
-	translationVector = tvec;
+	Rodrigues(R, pose.rodrigesVector);
+	pose.translationVector = tvec;
 
 }
 
@@ -362,9 +358,7 @@ int main(int argc, char *argv[])
 				Sleep(100);
 			}
 			else
-			{
 				break;
-			}
 		}
 
 		cv::Mat undistortedImage = view.clone();
@@ -373,43 +367,19 @@ int main(int argc, char *argv[])
 		if (trackingMode == 0)
 		{
 			// detect checkerboard
-			vector<Point2f> pointbuf;
-			bool found;
-			switch (c.pattern)
+			Pose cb;
+			cb.found = findChessboardCorners(undistortedImage, c.boardSize, cb.pointbuf, CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FAST_CHECK | CV_CALIB_CB_NORMALIZE_IMAGE);
+								
+			if (cb.found)
 			{
-				case CHESSBOARD:
-					found = findChessboardCorners(undistortedImage, c.boardSize, pointbuf,
-						CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FAST_CHECK | CV_CALIB_CB_NORMALIZE_IMAGE);
-					break;
-				case CIRCLES_GRID:
-					found = findCirclesGrid(view, c.boardSize, pointbuf);
-					break;
-				case ASYMMETRIC_CIRCLES_GRID:
-					found = findCirclesGrid(view, c.boardSize, pointbuf, CALIB_CB_ASYMMETRIC_GRID);
-					break;
-				default:
-					return fprintf(stderr, "Unknown pattern type\n"), -1;
-			}
+				// improve the found corners' coordinate accuracy
+				bool refinement = true;
+				if (refinement)
+					improveCheckerboardAccuracy(undistortedImage, cb.pointbuf);
 
-			// improve the found corners' coordinate accuracy
-			bool refinement = true;
-			if (refinement)
-			{
-				Mat viewGray;
-				cvtColor(undistortedImage, viewGray, CV_BGR2GRAY);
-				if (c.pattern == CHESSBOARD && found) cornerSubPix(viewGray, pointbuf, Size(11, 11),
-					Size(-1, -1), TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
-			}
-		
-			if (found)
-			{
 				//drawChessboardCorners(undistortedImage, c.boardSize, Mat(pointbuf), found);
-
-				cv::Mat rotationVector, translationVector;
-				cv::Mat rotMatrix;
-				computeExtrinsics(pointbuf, c, c.boardSize, c.squareSize, rotationVector, translationVector, rotMatrix);
-
-				drawAxis(undistortedImage, c.cameraMatrix, c.distortionCoefficient, rotationVector, translationVector, 5 * c.squareSize);
+				computeExtrinsics(cb, c, c.boardSize, c.squareSize);
+				drawAxis(undistortedImage, c.cameraMatrix, c.distortionCoefficient, cb.rodrigesVector, cb.translationVector, 5 * c.squareSize);
 			}
 		}
 		else if (trackingMode == 1)
@@ -418,16 +388,14 @@ int main(int argc, char *argv[])
 			if (undistortedImage.empty())
 				continue;
 
-			cv::Mat rotationVector[2], translationVector[2];
-			cv::Mat rotMatrix[2];
-			bool found[2];
-
+			Pose cbPose[2];
+			
 			cv::Mat blacked[2];
 			blacked[0] = undistortedImage.clone();
+			blacked[1] = undistortedImage.clone();
 			cv::Rect roi_rect(0, 0, undistortedImage.size().width/2, undistortedImage.size().height);
 			cv::Mat roiLeft(blacked[0], roi_rect);
 			roiLeft.setTo(Scalar(0));
-			blacked[1] = undistortedImage.clone();
 			roi_rect = cv::Rect(undistortedImage.size().width / 2, 0, undistortedImage.size().width / 2, undistortedImage.size().height);
 			cv::Mat roiRight(blacked[1], roi_rect);
 			roiRight.setTo(Scalar(0));
@@ -436,31 +404,30 @@ int main(int argc, char *argv[])
 			for (int i = 0; i < 2; i++)
 			{
 				// detect checkerboard
-				vector<Point2f> pointbuf;
-				found[i] = findChessboardCorners(blacked[i], c.boardSize, pointbuf,CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FAST_CHECK | CV_CALIB_CB_NORMALIZE_IMAGE);
-			
-				// improve the found corners' coordinate accuracy
-				bool refinement = true;
-				if (refinement && found[i])
-				{
-					Mat viewGray;
-					cvtColor(blacked[i], viewGray, CV_BGR2GRAY);
-					cornerSubPix(viewGray, pointbuf, Size(11, 11), Size(-1, -1), TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
-				}
+				cbPose[i].found = findChessboardCorners(blacked[i], c.boardSize, cbPose[i].pointbuf,CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FAST_CHECK | CV_CALIB_CB_NORMALIZE_IMAGE);
 
-				if (found[i])
+				if (cbPose[i].found)
 				{
+					// improve the found corners' coordinate accuracy
+					bool refinement = true;
+					if (refinement)
+						improveCheckerboardAccuracy(blacked[i], cbPose[i].pointbuf, Size(11, 11));
+
 					//drawChessboardCorners(undistortedImage, c.boardSize, Mat(pointbuf), found);
-								
-					computeExtrinsics(pointbuf, c, c.boardSize, c.squareSize, rotationVector[i], translationVector[i], rotMatrix[i]);
-
-					drawAxis(undistortedImage, c.cameraMatrix, c.distortionCoefficient, rotationVector[i], translationVector[i], 5 * c.squareSize);
+					computeExtrinsics(cbPose[i], c, c.boardSize, c.squareSize);
+					drawAxis(undistortedImage, c.cameraMatrix, c.distortionCoefficient, cbPose[i].rodrigesVector, cbPose[i].translationVector, 5 * c.squareSize);
 				}
 			}
 			
 
-			if (found[0] && found[1])
+			if (cbPose[0].found && cbPose[1].found)
 			{
+
+				cbPose[0].convertOpenCVtoGLM();
+				cbPose[1].convertOpenCVtoGLM();
+
+#if 0
+
 				// estimate transform between both
 				glm::vec3 p[2];
 				p[0] = glm::vec3(translationVector[0].at<double>(0), translationVector[0].at<double>(1), translationVector[0].at<double>(2));
@@ -518,18 +485,18 @@ int main(int argc, char *argv[])
 				
 				printf("ex = %.2f ey = %.2f ez = %.2f| y = %.2f p = %.2f r = %.2f\n", euler.x, euler.y, euler.z, yaw, pitch, roll);
 
+#endif
+
 			}
 		}
 		else if (trackingMode == 2)
 		{
-			// select region of interest
-			
+						
 			const int numCheckerboards = 3;
-
 			static Rect2d checkerboardRoi[numCheckerboards];
-			
 			static bool allRoisSet = false;
 
+			// created user-selected regions of interest
 			char key = cvWaitKey(1);
 			if ((key & 255) == 52)
 			{
@@ -547,68 +514,60 @@ int main(int argc, char *argv[])
 					else
 						printf("roi %d set\n", i);
 				}
-				
 			}
 
 			if (allRoisSet)
 			{
-				cv::Mat rotationVector[numCheckerboards], translationVector[numCheckerboards];
-				cv::Mat rotMatrix[numCheckerboards];
-				bool found[numCheckerboards];
+				Pose cbPose[numCheckerboards];
 
 				// find checkerboards
 				for (int i = 0; i < numCheckerboards; i++)
 				{
-					// detect checkerboard
-					vector<Point2f> pointbuf;
-
+					// create region of interest
 					cv::Mat roiImg(undistortedImage, checkerboardRoi[i]);
 
-					found[i] = findChessboardCorners(roiImg, c.boardSize, pointbuf,CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FAST_CHECK | CV_CALIB_CB_NORMALIZE_IMAGE);
+					// detect checkerboard
+					cbPose[i].found = findChessboardCorners(roiImg, c.boardSize, cbPose[i].pointbuf, CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FAST_CHECK | CV_CALIB_CB_NORMALIZE_IMAGE);
 
-					// improve the found corners' coordinate accuracy
-					bool refinement = true;
-					if (refinement && found[i])
+					if (cbPose[i].found)
 					{
-						Mat viewGray;
-						cvtColor(roiImg, viewGray, CV_BGR2GRAY);
-						cornerSubPix(viewGray, pointbuf, Size(11, 11), Size(-1, -1), TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
-					}
 
-					// add offset from roi position
-					cv::Point2f offset(checkerboardRoi[i].x, checkerboardRoi[i].y);
-					for (auto &p : pointbuf)
-						p = p + offset;
+						// improve the found corners' coordinate accuracy
+						bool refinement = true;
+						if (refinement)
+							improveCheckerboardAccuracy(roiImg, cbPose[i].pointbuf, cv::Size(11, 11));
 
-					if (found[i])
-					{
-						drawChessboardCorners(undistortedImage, c.boardSize, Mat(pointbuf), found);
-						computeExtrinsics(pointbuf, c, c.boardSize, c.squareSize, rotationVector[i], translationVector[i], rotMatrix[i]);
+						// add offset from roi position
+						cv::Point2f offset(checkerboardRoi[i].x, checkerboardRoi[i].y);
+						for (auto &p : cbPose[i].pointbuf)
+							p = p + offset;
 
-						//if (i == 1)
-						//{
-						//	rotationVector[i].at<double>(0) = 0;
-						//	rotationVector[i].at<double>(1) = 0;
-						//	rotationVector[i].at<double>(2) = 0;
-						//	
-						//}
+						drawChessboardCorners(undistortedImage, c.boardSize, Mat(cbPose[i].pointbuf), cbPose[i].found);
 
-						drawAxis(undistortedImage, c.cameraMatrix, c.distortionCoefficient, rotationVector[i], translationVector[i], 5 * c.squareSize);
+						computeExtrinsics(cbPose[i], c, c.boardSize, c.squareSize);
+
+						drawAxis(undistortedImage, c.cameraMatrix, c.distortionCoefficient, cbPose[i].rodrigesVector, cbPose[i].translationVector, 5 * c.squareSize);
+
+						cbPose[i].convertOpenCVtoGLM();
 					}
 				}
 
 
-				if (found[0] && found[1])
+
+				if (cbPose[0].found && cbPose[1].found)
 				{
 					// estimate transform between both
-					glm::vec3 p[2];
-					p[0] = glm::vec3(translationVector[0].at<double>(0), translationVector[0].at<double>(1), translationVector[0].at<double>(2));
-					p[1] = glm::vec3(translationVector[1].at<double>(0), translationVector[1].at<double>(1), translationVector[1].at<double>(2));
-					glm::vec3 r[2];
-					r[0] = glm::vec3(rotationVector[0].at<double>(0), rotationVector[0].at<double>(1), rotationVector[0].at<double>(2));
-					r[1] = glm::vec3(rotationVector[1].at<double>(0), rotationVector[1].at<double>(1), rotationVector[1].at<double>(2));
+					//glm::vec3 p[2];
+					//p[0] = glm::vec3(translationVector[0].at<double>(0), translationVector[0].at<double>(1), translationVector[0].at<double>(2));
+					//p[1] = glm::vec3(translationVector[1].at<double>(0), translationVector[1].at<double>(1), translationVector[1].at<double>(2));
+					//glm::vec3 r[2];
+					//r[0] = glm::vec3(rotationVector[0].at<double>(0), rotationVector[0].at<double>(1), rotationVector[0].at<double>(2));
+					//r[1] = glm::vec3(rotationVector[1].at<double>(0), rotationVector[1].at<double>(1), rotationVector[1].at<double>(2));
 
-					float distance = glm::length(p[1] - p[0]);
+
+#if 0
+
+					float distance = glm::length(cbPose[1].translationVectorGLM - cbPose[0].translationVectorGLM);
 
 					// compute transform from coordinate system A to B
 					glm::mat4 tA_Translation = glm::translate(glm::mat4(1.f), p[0]);
@@ -644,6 +603,8 @@ int main(int argc, char *argv[])
 
 					//printf("length = %.2f\n", distance);
 
+#endif
+
 #if 0
 
 					// compute angle
@@ -676,35 +637,35 @@ int main(int argc, char *argv[])
 
 #endif
 
-					float thetaA = glm::length(r[0]);
+	/*				float thetaA = glm::length(r[0]);
 					float thetaB = glm::length(r[1]);
 					glm::vec3 vA = r[0] / thetaA;
-					glm::vec3 vB = r[1] / thetaB;
+					glm::vec3 vB = r[1] / thetaB;*/
 					
 					//printf("vA = %.2f vA = %.2f vA = %.2f| thetaA = %.2f\n", vA.x, vA.y, vA.z, thetaA);
 
-					glm::mat3 rotMatA;
-					// convert OpenCV matrix to GLM matrix
-					for (int i = 0; i < 3; i++)
-						for (int j = 0; j < 3; j++)
-							rotMatA[i][j] = rotMatrix[0].at<double>(j, i);
+					//glm::mat3 rotMatA;
+					//// convert OpenCV matrix to GLM matrix
+					//for (int i = 0; i < 3; i++)
+					//	for (int j = 0; j < 3; j++)
+					//		rotMatA[i][j] = rotMatrix[0].at<double>(j, i);
 
-					glm::mat3 rotMatB;
-					// convert OpenCV matrix to GLM matrix
-					for (int i = 0; i < 3; i++)
-						for (int j = 0; j < 3; j++)
-							rotMatB[i][j] = rotMatrix[1].at<double>(j, i);
+					//glm::mat3 rotMatB;
+					//// convert OpenCV matrix to GLM matrix
+					//for (int i = 0; i < 3; i++)
+					//	for (int j = 0; j < 3; j++)
+					//		rotMatB[i][j] = rotMatrix[1].at<double>(j, i);
 					
-					glm::quat qA_axisangle = glm::angleAxis(thetaA, vA);
-					glm::quat qA_rot = glm::quat(rotMatA);
+					//glm::quat qA_axisangle = glm::angleAxis(thetaA, vA);
+					//glm::quat qA_rot = glm::quat(rotMatA);
 
-					glm::quat qB_rot = glm::quat(rotMatB);
+					//glm::quat qB_rot = glm::quat(rotMatB);
 
-					// get euler from quaternion
-					glm::vec3 eulerA = glm::eulerAngles(qA_rot);
-					glm::vec3 eulerB = glm::eulerAngles(qB_rot);
+					//// get euler from quaternion
+					//glm::vec3 eulerA = glm::eulerAngles(qA_rot);
+					//glm::vec3 eulerB = glm::eulerAngles(qB_rot);
 
-					glm::vec3 eulerAtoB = glm::degrees(glm::eulerAngles(glm::quat(glm::inverse(rotMatA) * rotMatB)));
+					glm::vec3 eulerAtoB = glm::degrees(glm::eulerAngles(glm::quat(glm::inverse(cbPose[0].rotationMatrixGLM) * cbPose[1].rotationMatrixGLM)));
 
 					//printf("qAAx = %.2f qAAy = %.2f qAAz = %.2f qAAw = %.2f\n", q_axisangle.x, q_axisangle.y, q_axisangle.z, q_axisangle.w);
 					//printf("qMx = %.2f qMy = %.2f qMz = %.2f qMw = %.2f\n", q_rot.x, q_rot.y, q_rot.z, q_rot.w);
@@ -713,8 +674,6 @@ int main(int argc, char *argv[])
 					printf("a_to_B_x = %04.2f a_to_B_x = %04.2f a_to_B_x = %04.2f\n", eulerAtoB.x, eulerAtoB.y, eulerAtoB.z);
 
 				}
-
-
 
 				// draw regions of interests for different checkerboards
 				rectangle(undistortedImage, checkerboardRoi[0], cv::Scalar(255, 0, 0), 2);
