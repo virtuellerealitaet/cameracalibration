@@ -75,6 +75,41 @@ struct Pose
 		
 	}
 
+	void logPose(FileStorage &fs, int checkerboardId)
+	{
+		fs << "checkerboard index " << checkerboardId;
+		fs << "found " << found;
+
+		if (found)
+		{
+			std::string t_string;
+			char buffer[1024];
+
+			//fs << "rodriges vector " << rodrigesVector;
+			sprintf(buffer, "%.5f, %.5f, %.5f", (float)rodrigesVector.at<double>(0), (float)rodrigesVector.at<double>(1), (float)rodrigesVector.at<double>(2));
+			fs << "rodriges vector " << buffer;
+
+			//fs << "translation " << translationVector;
+			sprintf(buffer, "%.5f, %.5f, %.5f", translationVectorGLM.x, translationVectorGLM.y, translationVectorGLM.z);
+			fs << "translation " << buffer;
+
+			for (int i = 0; i < 4; i++)
+			{
+				for (int j = 0; j < 4; j++)
+				{
+					if (j<3)
+						sprintf(buffer, "%.5f, ", rotationMatrixGLM[i][j]);
+					else
+						sprintf(buffer, "%.5f", rotationMatrixGLM[i][j]);
+					t_string.append(buffer);
+				}
+				t_string.append(";");
+			}
+			fs << "transform " << t_string;
+
+		}
+	}
+
 };
 
 void improveCheckerboardAccuracy(cv::Mat &img, vector<Point2f> &cornerPoints, cv::Size sz = cv::Size(11,11))
@@ -299,6 +334,7 @@ static void help()
 		"     [-id <x>]			# camera id\n"
 		"     [-s <x>]			# square size in mm\n"
 		"     -o <result_file>		# the output filename for detected checkerboards\n"
+		"     [-t <x>]			# tracking mode (0=single, 1=dual (left/right), 2=user selected triple\n"
 		"\n");
 	printf("%s", usage);
 }
@@ -318,6 +354,27 @@ static bool readStringList(const string& filename, vector<string>& l)
 	return true;
 }
 
+void showImage(cv::Mat &img, std::string &windowName, char &key)
+{
+	// show image
+	// if image is small enough show it
+	if (img.size().width <= 800 && img.size().height <= 600)
+	{
+		cv::imshow(windowName, img);
+	}
+	else
+	{
+		float resizeFactorWidth = (float)800 / (float)img.size().width;
+		float resizeFactorHeight = (float)600 / (float)img.size().height;
+		float combinedResizeFactor = (std::max(resizeFactorWidth, resizeFactorHeight));
+		cv::Mat resizedImg;
+		cv::resize(img, resizedImg, cv::Size(img.size().width * combinedResizeFactor,
+			img.size().height * combinedResizeFactor));
+		cv::imshow(windowName, resizedImg);
+	}
+
+	key = cvWaitKey(1);
+}
 
 int main(int argc, char *argv[])
 {
@@ -328,6 +385,8 @@ int main(int argc, char *argv[])
 	const char* outputFilename = "out_detection_data.yml";
 	const char* imageListFilename = "";
 	const char* calibrationFile = "";
+
+	int trackingMode = 0; // 0 = single tracking mode, 1 = dual tracking mode
 
 	float squareSize = 6.f;
 
@@ -363,6 +422,11 @@ int main(int argc, char *argv[])
 		{
 			if (sscanf(argv[++i], "%u", &cameraId) < 0)
 				return printf("Invalid camera id\n"), -1;
+		}
+		else if (strcmp(s, "-t") == 0) // tracking mode
+		{
+			if (sscanf(argv[++i], "%u", &trackingMode) < 0)
+				return printf("Invalid tracing mode\n"), -1;
 		}
 		else
 			return fprintf(stderr, "Unknown option %s", s), -1;
@@ -488,7 +552,7 @@ int main(int argc, char *argv[])
 
 	int frameNumber = 0;
 
-	int trackingMode = 0; // 0 = single tracking mode, 1 = dual tracking mode
+	FileStorage fs(outputFilename, FileStorage::WRITE);
 
 	while (true)
 	{
@@ -504,7 +568,11 @@ int main(int argc, char *argv[])
 					Sleep(100);
 				}
 				else
+				{
+					frameNumber++;
+					fs << "frame " << frameNumber;
 					break;
+				}
 			}
 		}
 		else
@@ -516,6 +584,7 @@ int main(int argc, char *argv[])
 			}
 			printf("Reading image %s..\n", imageList[currentImageIndex].c_str());
 			view = imread(imageList[currentImageIndex], 1);
+			fs << "frame " << imageList[currentImageIndex];
 			currentImageIndex++;
 		}
 
@@ -575,6 +644,8 @@ int main(int argc, char *argv[])
 					computeExtrinsics(cbPose[i], c, c.boardSize, squareSize);
 					drawAxis(undistortedImage, c.cameraMatrix, c.distortionCoefficient, cbPose[i].rodrigesVector, cbPose[i].translationVector, 5 * squareSize);
 				}
+
+				cbPose[i].logPose(fs, i);
 			}
 
 
@@ -593,23 +664,29 @@ int main(int argc, char *argv[])
 			static Rect2d checkerboardRoi[numCheckerboards];
 			static bool allRoisSet = false;
 
-			// created user-selected regions of interest
-			char key = cvWaitKey(1);
-			if ((key & 255) == 52)
+			if (!allRoisSet)
 			{
-				allRoisSet = true;
-				bool fromCenter = false;
-				for (int i = 0; i < numCheckerboards; i++)
+				char key;
+				showImage(undistortedImage, windowName, key);
+			
+				// created user-selected regions of interest
+				//char key = cvWaitKey(1);
+				//if ((key & 255) == 52)
 				{
-					printf("select roi %d\n", i);
-					checkerboardRoi[i] = selectROI(windowName, undistortedImage, fromCenter);
-					if (checkerboardRoi[i].empty())
+					allRoisSet = true;
+					bool fromCenter = false;
+					for (int i = 0; i < numCheckerboards; i++)
 					{
-						allRoisSet = false;
-						break;
+						printf("select roi %d\n", i);
+						checkerboardRoi[i] = selectROI(windowName, undistortedImage, fromCenter);
+						if (checkerboardRoi[i].empty())
+						{
+							allRoisSet = false;
+							break;
+						}
+						else
+							printf("roi %d set\n", i);
 					}
-					else
-						printf("roi %d set\n", i);
 				}
 			}
 
@@ -647,19 +724,20 @@ int main(int argc, char *argv[])
 
 						cbPose[i].convertOpenCVtoGLM();
 					}
+
+					cbPose[i].logPose(fs, i);
 				}
 
 				if (cbPose[0].found && cbPose[1].found)
 				{
 					// compute angle from checkerboard A to checkerboard B
 					glm::vec3 eulerAtoB = glm::degrees(glm::eulerAngles(glm::quat(glm::inverse(cbPose[0].rotationMatrixGLM) * cbPose[1].rotationMatrixGLM)));
-					printf("a_to_B_x = %04.2f a_to_B_x = %04.2f a_to_B_x = %04.2f\n", eulerAtoB.x, eulerAtoB.y, eulerAtoB.z);
-
+					
 					// draw line from checkerboard origin A to checkerboard origin B
 
 					// distance of checkerboards
 					glm::vec3 vectorAtoB = cbPose[1].translationVectorGLM - cbPose[0].translationVectorGLM;
-					printf("distance A to B = %.2f\n", glm::length(vectorAtoB));
+					
 
 					// origin of A
 					glm::vec4 v = glm::vec4(glm::vec3(0, 0, 0), 1.f);
@@ -675,6 +753,16 @@ int main(int argc, char *argv[])
 					line(undistortedImage, imagePoints[0], imagePoints[1], Scalar(0, 0, 255), 1);
 					circle(undistortedImage, imagePoints[1], 5, Scalar(0, 255, 255), 3);
 
+
+					// log detected checkerboards
+					printf("a_to_B_x = %04.2f a_to_B_x = %04.2f a_to_B_x = %04.2f\n", eulerAtoB.x, eulerAtoB.y, eulerAtoB.z);
+					printf("distance A to B = %.2f\n", glm::length(vectorAtoB));
+
+				}
+				else
+				{
+					// log that checkerboard detection has failed
+					printf("detection of checkerboards failed\n");
 				}
 
 				// draw regions of interests for different checkerboards
@@ -689,27 +777,12 @@ int main(int argc, char *argv[])
 
 		}
 
+		char key;
+		showImage(undistortedImage, windowName, key);
 
-		// show image
-		// if image is small enough show it
-		if (undistortedImage.size().width <= 800 && undistortedImage.size().height <= 600)
-		{
-			cv::imshow(windowName, undistortedImage);
-		}
-		else
-		{
-			float resizeFactorWidth = (float)800 / (float)undistortedImage.size().width;
-			float resizeFactorHeight = (float)600 / (float)undistortedImage.size().height;
-			float combinedResizeFactor = (std::max(resizeFactorWidth, resizeFactorHeight));
-			cv::Mat resizedImg;
-			cv::resize(undistortedImage, resizedImg, cv::Size(undistortedImage.size().width * combinedResizeFactor,
-				undistortedImage.size().height * combinedResizeFactor));
-			cv::imshow(windowName, resizedImg);
-		}
-		
 
 		// quite program on keyboard input
-		char key = cvWaitKey(1);
+		
 		
 		if ((key & 255) == 49)
 		{
@@ -731,6 +804,9 @@ int main(int argc, char *argv[])
 		if ((key & 255) == 27)
 			break;
     }
+
+	// release log file
+	fs.release();
 
 	if (camera)
 	{
