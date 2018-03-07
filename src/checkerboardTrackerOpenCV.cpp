@@ -357,22 +357,24 @@ static bool readStringList(const string& filename, vector<string>& l)
 	return true;
 }
 
-void showImage(cv::Mat &img, std::string &windowName, char &key)
+void showImage(cv::Mat &img, std::string &windowName, char &key, float &imageResizeFactor)
 {
 	// show image
 	// if image is small enough show it
 	if (img.size().width <= 800 && img.size().height <= 600)
 	{
+		imageResizeFactor = 1.f;
 		cv::imshow(windowName, img);
 	}
 	else
 	{
-		float resizeFactorWidth = (float)800 / (float)img.size().width;
-		float resizeFactorHeight = (float)600 / (float)img.size().height;
-		float combinedResizeFactor = (std::max(resizeFactorWidth, resizeFactorHeight));
+		float resizeFactorWidth = (float)img.size().width / (float)800;
+		float resizeFactorHeight = (float)img.size().height / (float)600;
+		imageResizeFactor = 1.f / std::floor((std::max(resizeFactorWidth, resizeFactorHeight)));
+		printf("image resize factor on showimage %.2f\n", imageResizeFactor);
+
 		cv::Mat resizedImg;
-		cv::resize(img, resizedImg, cv::Size(img.size().width * combinedResizeFactor,
-			img.size().height * combinedResizeFactor));
+		cv::resize(img, resizedImg, cv::Size(img.size().width * imageResizeFactor, img.size().height * imageResizeFactor));
 		cv::imshow(windowName, resizedImg);
 	}
 
@@ -673,8 +675,9 @@ int main(int argc, char *argv[])
 			if (!allRoisSet)
 			{
 				char key;
-				showImage(undistortedImage, windowName, key);
-			
+				float imageResizeFactor = 1.f;
+				showImage(undistortedImage, windowName, key, imageResizeFactor);
+
 				// created user-selected regions of interest
 				//char key = cvWaitKey(1);
 				//if ((key & 255) == 52)
@@ -684,7 +687,23 @@ int main(int argc, char *argv[])
 					for (int i = 0; i < numCheckerboards; i++)
 					{
 						printf("select roi %d\n", i);
-						checkerboardRoi[i] = selectROI(windowName, undistortedImage, fromCenter);
+						cv::Mat resizedImage;
+						cv::resize(undistortedImage, resizedImage, cv::Size(undistortedImage.size().width * imageResizeFactor, undistortedImage.size().height * imageResizeFactor));
+						checkerboardRoi[i] = selectROI(windowName, resizedImage, fromCenter);
+						double x, y, w, h;
+
+						float correctedResizeFactor = (1.f / imageResizeFactor);
+						
+						x = checkerboardRoi[i].x * correctedResizeFactor;
+						y = checkerboardRoi[i].y * correctedResizeFactor;
+						w = checkerboardRoi[i].width * correctedResizeFactor;
+						h = checkerboardRoi[i].height * correctedResizeFactor;
+						checkerboardRoi[i] = Rect2d(x,y,w,h);
+
+						printf("resize factor %.5f\n", correctedResizeFactor);
+
+						//checkerboardRoi[i] = selectROI(windowName, undistortedImage, fromCenter);
+
 						if (checkerboardRoi[i].empty())
 						{
 							allRoisSet = false;
@@ -817,7 +836,8 @@ int main(int argc, char *argv[])
 		}
 
 		char key;
-		showImage(undistortedImage, windowName, key);
+		float imageResizeFactor = 1.f;
+		showImage(undistortedImage, windowName, key, imageResizeFactor);
 
 
 		// quite program on keyboard input
