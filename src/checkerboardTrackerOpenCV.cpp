@@ -56,17 +56,23 @@ struct Pose
 	
 	glm::vec3 translationVectorGLM;
 	glm::mat3 rotationMatrixGLM;
+	glm::mat4 transformGLM;
 
 	bool found = false; // checkerboard found
 
 	void convertOpenCVtoGLM()
 	{
+		// convert location of checkerboard (translation)
 		translationVectorGLM = glm::vec3(translationVector.at<double>(0), translationVector.at<double>(1), translationVector.at<double>(2));
-		//glm::vec3 r = glm::vec3(rotationVector[0].at<double>(0), rotationVector[0].at<double>(1), rotationVector[0].at<double>(2));
-		// convert OpenCV matrix to GLM matrix
+
+		// convert OpenCV rotation matrix to GLM matrix
 		for (int i = 0; i < 3; i++)
 			for (int j = 0; j < 3; j++)
 				rotationMatrixGLM[i][j] = rotMatrix.at<double>(j, i);
+
+		// transformation matrix containing rotation and translation
+		transformGLM = glm::translate(glm::mat4(1.f), translationVectorGLM) * glm::mat4(rotationMatrixGLM);
+		
 	}
 
 };
@@ -425,68 +431,7 @@ int main(int argc, char *argv[])
 
 				cbPose[0].convertOpenCVtoGLM();
 				cbPose[1].convertOpenCVtoGLM();
-
-#if 0
-
-				// estimate transform between both
-				glm::vec3 p[2];
-				p[0] = glm::vec3(translationVector[0].at<double>(0), translationVector[0].at<double>(1), translationVector[0].at<double>(2));
-				p[1] = glm::vec3(translationVector[1].at<double>(0), translationVector[1].at<double>(1), translationVector[1].at<double>(2));
-				glm::vec3 r[2];
-				r[0] = glm::vec3(rotationVector[0].at<double>(0), rotationVector[0].at<double>(1), rotationVector[0].at<double>(2));
-				r[1] = glm::vec3(rotationVector[1].at<double>(0), rotationVector[1].at<double>(1), rotationVector[1].at<double>(2));
-
-				float distance = glm::length(p[1] - p[0]);
-
-				// compute transform from coordinate system A to B
-				glm::mat4 tA_Translation = glm::translate(glm::mat4(1.f), p[0]);
-				glm::quat rotX = glm::angleAxis(r[0].x, glm::vec3(1.f, 0.f, 0.f));
-				glm::quat rotY = glm::angleAxis(r[0].y, glm::vec3(0.f, 1.f, 0.f));
-				glm::quat rotZ = glm::angleAxis(r[0].z, glm::vec3(0.f, 0.f, 1.f));
-				glm::mat4 rotMatrixA = glm::mat4_cast(rotX) * glm::mat4_cast(rotY) * glm::mat4_cast(rotZ);
-				glm::mat4 tA = tA_Translation * rotMatrixA;
-
-				glm::mat4 tB_Translation = glm::translate(glm::mat4(1.f), p[1]);
-				rotX = glm::angleAxis(r[1].x, glm::vec3(1.f, 0.f, 0.f));
-				rotY = glm::angleAxis(r[1].y, glm::vec3(0.f, 1.f, 0.f));
-				rotZ = glm::angleAxis(r[1].z, glm::vec3(0.f, 0.f, 1.f));
-				glm::mat4 rotMatrixB = glm::mat4_cast(rotX) * glm::mat4_cast(rotY) * glm::mat4_cast(rotZ);
-				glm::mat4 tB = tB_Translation * rotMatrixB;
 				
-				glm::vec3 frameBinA(distance, 0, 0);
-				
-				glm::vec4 v = glm::vec4(glm::vec3(0, 0, 0), 1.f);
-				frameBinA = glm::inverse(tB) * tA * v;
-
-				
-				
-				//// project axis points
-				vector< Point3f > axisPoints;
-				axisPoints.push_back(Point3f(0, 0, 0));
-				axisPoints.push_back(Point3f(distance, 0, 0));
-				axisPoints.push_back(Point3f(frameBinA.x, frameBinA.y, frameBinA.z));
-				
-				vector< Point2f > imagePoints;
-				projectPoints(axisPoints, rotationVector[1], translationVector[1], c.cameraMatrix, c.distortionCoefficient, imagePoints);
-
-				line(undistortedImage, imagePoints[0], imagePoints[1], Scalar(0, 0, 255), 1);
-				circle(undistortedImage, imagePoints[2], 5, Scalar(0, 255, 255), 3);
-
-				//printf("x = %.2f y = %.2f z = %.2f\n", frameBinA.x, frameBinA.y, frameBinA.z);
-
-				//printf("length = %.2f\n", distance);
-				
-				// compute angle
-				glm::quat q = glm::quat(glm::inverse(tB) * tA);
-				glm::vec3 euler = glm::eulerAngles(q);
-				glm::vec3 yaw = glm::eulerAngles(q);
-				glm::vec3 pitch = glm::eulerAngles(q);
-				glm::vec3 roll = glm::eulerAngles(q);
-				
-				printf("ex = %.2f ey = %.2f ez = %.2f| y = %.2f p = %.2f r = %.2f\n", euler.x, euler.y, euler.z, yaw, pitch, roll);
-
-#endif
-
 			}
 		}
 		else if (trackingMode == 2)
@@ -551,127 +496,32 @@ int main(int argc, char *argv[])
 						cbPose[i].convertOpenCVtoGLM();
 					}
 				}
-
-
-
+				
 				if (cbPose[0].found && cbPose[1].found)
 				{
-					// estimate transform between both
-					//glm::vec3 p[2];
-					//p[0] = glm::vec3(translationVector[0].at<double>(0), translationVector[0].at<double>(1), translationVector[0].at<double>(2));
-					//p[1] = glm::vec3(translationVector[1].at<double>(0), translationVector[1].at<double>(1), translationVector[1].at<double>(2));
-					//glm::vec3 r[2];
-					//r[0] = glm::vec3(rotationVector[0].at<double>(0), rotationVector[0].at<double>(1), rotationVector[0].at<double>(2));
-					//r[1] = glm::vec3(rotationVector[1].at<double>(0), rotationVector[1].at<double>(1), rotationVector[1].at<double>(2));
+					// compute angle from checkerboard A to checkerboard B
+					glm::vec3 eulerAtoB = glm::degrees(glm::eulerAngles(glm::quat(glm::inverse(cbPose[0].rotationMatrixGLM) * cbPose[1].rotationMatrixGLM)));
+					printf("a_to_B_x = %04.2f a_to_B_x = %04.2f a_to_B_x = %04.2f\n", eulerAtoB.x, eulerAtoB.y, eulerAtoB.z);
 
+					// draw line from checkerboard origin A to checkerboard origin B
 
-#if 0
+					// distance of checkerboards
+					glm::vec3 vectorAtoB = cbPose[1].translationVectorGLM - cbPose[0].translationVectorGLM;
+					printf("distance A to B = %.2f\n", glm::length(vectorAtoB));
 
-					float distance = glm::length(cbPose[1].translationVectorGLM - cbPose[0].translationVectorGLM);
-
-					// compute transform from coordinate system A to B
-					glm::mat4 tA_Translation = glm::translate(glm::mat4(1.f), p[0]);
-					glm::quat rotX = glm::angleAxis(r[0].x, glm::vec3(1.f, 0.f, 0.f));
-					glm::quat rotY = glm::angleAxis(r[0].y, glm::vec3(0.f, 1.f, 0.f));
-					glm::quat rotZ = glm::angleAxis(r[0].z, glm::vec3(0.f, 0.f, 1.f));
-					glm::mat4 rotMatrixA = glm::mat4_cast(rotX) * glm::mat4_cast(rotY) * glm::mat4_cast(rotZ);
-					glm::mat4 tA = tA_Translation * rotMatrixA;
-
-					glm::mat4 tB_Translation = glm::translate(glm::mat4(1.f), p[1]);
-					rotX = glm::angleAxis(r[1].x, glm::vec3(1.f, 0.f, 0.f));
-					rotY = glm::angleAxis(r[1].y, glm::vec3(0.f, 1.f, 0.f));
-					rotZ = glm::angleAxis(r[1].z, glm::vec3(0.f, 0.f, 1.f));
-					glm::mat4 rotMatrixB = glm::mat4_cast(rotX) * glm::mat4_cast(rotY) * glm::mat4_cast(rotZ);
-					glm::mat4 tB = tB_Translation * rotMatrixB;
-
-					glm::vec3 frameBinA(distance, 0, 0);
-
+					// origin of A
 					glm::vec4 v = glm::vec4(glm::vec3(0, 0, 0), 1.f);
-					frameBinA = glm::inverse(tB) * tA * v;
+					glm::vec3 frameBinA = glm::inverse(cbPose[1].transformGLM) * cbPose[0].transformGLM * v;
 
-					//// project axis points
+					// project point from A to B
 					vector< Point3f > axisPoints;
 					axisPoints.push_back(Point3f(0, 0, 0));
-					axisPoints.push_back(Point3f(distance, 0, 0));
 					axisPoints.push_back(Point3f(frameBinA.x, frameBinA.y, frameBinA.z));
+
 					vector< Point2f > imagePoints;
-					projectPoints(axisPoints, rotationVector[1], translationVector[1], c.cameraMatrix, c.distortionCoefficient, imagePoints);
+					projectPoints(axisPoints, cbPose[1].rodrigesVector, cbPose[1].translationVector, c.cameraMatrix, c.distortionCoefficient, imagePoints);
 					line(undistortedImage, imagePoints[0], imagePoints[1], Scalar(0, 0, 255), 1);
-					circle(undistortedImage, imagePoints[2], 5, Scalar(0, 255, 255), 3);
-
-					//printf("x = %.2f y = %.2f z = %.2f\n", frameBinA.x, frameBinA.y, frameBinA.z);
-
-					//printf("length = %.2f\n", distance);
-
-#endif
-
-#if 0
-
-					// compute angle
-					//glm::quat q = glm::quat(glm::inverse(tB) * tA);
-					glm::quat qA = glm::quat(tA);
-					glm::quat qB = glm::quat(tB);
-					glm::vec3 eulerA = glm::eulerAngles(qA);
-					glm::vec3 eulerB = glm::eulerAngles(qB);
-
-					//float yaw = glm::degrees(glm::yaw(q));
-					//float pitch = glm::degrees(glm::pitch(q));
-					//float roll = glm::degrees(glm::roll(q));
-					
-					glm::mat4 rot = glm::mat4(glm::angleAxis(eulerA.x, glm::vec3(1, 0, 0)));
-
-					qA = glm::quat(rot * tA);
-					qB = glm::quat(rot * tB);
-					eulerA = glm::eulerAngles(qA);
-					eulerB = glm::eulerAngles(qB);
-
-					eulerA.x = glm::degrees(eulerA.x);
-					eulerA.y = glm::degrees(eulerA.y);
-					eulerA.z = glm::degrees(eulerA.z);
-					eulerB.x = glm::degrees(eulerB.x);
-					eulerB.y = glm::degrees(eulerB.y);
-					eulerB.z = glm::degrees(eulerB.z);
-
-					//printf("ex = %.2f ey = %.2f ez = %.2f| yx = %.2f yy = %.2f yz = %.2f\n", euler.x, euler.y, euler.z, yaw, pitch, roll);
-					//printf("ex = %.2f ey = %.2f ez = %.2f| ex = %.2f ey = %.2f ez = %.2f\n", eulerA.x, eulerA.y, eulerA.z, eulerB.x, eulerB.y, eulerB.z);
-
-#endif
-
-	/*				float thetaA = glm::length(r[0]);
-					float thetaB = glm::length(r[1]);
-					glm::vec3 vA = r[0] / thetaA;
-					glm::vec3 vB = r[1] / thetaB;*/
-					
-					//printf("vA = %.2f vA = %.2f vA = %.2f| thetaA = %.2f\n", vA.x, vA.y, vA.z, thetaA);
-
-					//glm::mat3 rotMatA;
-					//// convert OpenCV matrix to GLM matrix
-					//for (int i = 0; i < 3; i++)
-					//	for (int j = 0; j < 3; j++)
-					//		rotMatA[i][j] = rotMatrix[0].at<double>(j, i);
-
-					//glm::mat3 rotMatB;
-					//// convert OpenCV matrix to GLM matrix
-					//for (int i = 0; i < 3; i++)
-					//	for (int j = 0; j < 3; j++)
-					//		rotMatB[i][j] = rotMatrix[1].at<double>(j, i);
-					
-					//glm::quat qA_axisangle = glm::angleAxis(thetaA, vA);
-					//glm::quat qA_rot = glm::quat(rotMatA);
-
-					//glm::quat qB_rot = glm::quat(rotMatB);
-
-					//// get euler from quaternion
-					//glm::vec3 eulerA = glm::eulerAngles(qA_rot);
-					//glm::vec3 eulerB = glm::eulerAngles(qB_rot);
-
-					glm::vec3 eulerAtoB = glm::degrees(glm::eulerAngles(glm::quat(glm::inverse(cbPose[0].rotationMatrixGLM) * cbPose[1].rotationMatrixGLM)));
-
-					//printf("qAAx = %.2f qAAy = %.2f qAAz = %.2f qAAw = %.2f\n", q_axisangle.x, q_axisangle.y, q_axisangle.z, q_axisangle.w);
-					//printf("qMx = %.2f qMy = %.2f qMz = %.2f qMw = %.2f\n", q_rot.x, q_rot.y, q_rot.z, q_rot.w);
-										
-					//printf("eAx = %.2f eAy = %.2f eAz = %.2f| eBx = %.2f eBy = %.2f eBz = %.2f\n", eulerA.x, eulerA.y, eulerA.z, eulerB.x, eulerB.y, eulerA.z);
-					printf("a_to_B_x = %04.2f a_to_B_x = %04.2f a_to_B_x = %04.2f\n", eulerAtoB.x, eulerAtoB.y, eulerAtoB.z);
+					circle(undistortedImage, imagePoints[1], 5, Scalar(0, 255, 255), 3);
 
 				}
 
