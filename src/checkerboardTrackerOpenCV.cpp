@@ -62,6 +62,9 @@ struct Pose
 
 	void convertOpenCVtoGLM()
 	{
+		if (!found)
+			return;
+
 		// convert location of checkerboard (translation)
 		translationVectorGLM = glm::vec3(translationVector.at<double>(0), translationVector.at<double>(1), translationVector.at<double>(2));
 
@@ -75,10 +78,10 @@ struct Pose
 		
 	}
 
-	void logPose(FileStorage &fs, int checkerboardId)
+	void logPose(ofstream &fs, int checkerboardId)
 	{
-		fs << "checkerboard index " << checkerboardId;
-		fs << "found " << found;
+		fs << "checkerboard index " << checkerboardId << endl;
+		fs << "found " << found << endl;
 
 		if (found)
 		{
@@ -87,26 +90,26 @@ struct Pose
 
 			//fs << "rodriges vector " << rodrigesVector;
 			sprintf(buffer, "%.5f, %.5f, %.5f", (float)rodrigesVector.at<double>(0), (float)rodrigesVector.at<double>(1), (float)rodrigesVector.at<double>(2));
-			fs << "rodriges vector " << buffer;
+			fs << "rodriges vector " << buffer << endl;
 
 			//fs << "translation " << translationVector;
 			sprintf(buffer, "%.5f, %.5f, %.5f", translationVectorGLM.x, translationVectorGLM.y, translationVectorGLM.z);
-			fs << "translation " << buffer;
+			fs << "translation " << buffer << endl;
 
 			for (int i = 0; i < 4; i++)
 			{
 				for (int j = 0; j < 4; j++)
 				{
 					if (j<3)
-						sprintf(buffer, "%.5f, ", rotationMatrixGLM[i][j]);
+						sprintf(buffer, "%.5f, ", transformGLM[i][j]);
 					else
-						sprintf(buffer, "%.5f", rotationMatrixGLM[i][j]);
+						sprintf(buffer, "%.5f", transformGLM[i][j]);
+
 					t_string.append(buffer);
 				}
 				t_string.append(";");
 			}
-			fs << "transform " << t_string;
-
+			fs << "transform " << t_string << endl;
 		}
 	}
 
@@ -552,7 +555,10 @@ int main(int argc, char *argv[])
 
 	int frameNumber = 0;
 
-	FileStorage fs(outputFilename, FileStorage::WRITE);
+	//FileStorage fs(outputFilename, FileStorage::WRITE);
+	ofstream fs;
+	fs.open(outputFilename);
+
 
 	while (true)
 	{
@@ -570,7 +576,7 @@ int main(int argc, char *argv[])
 				else
 				{
 					frameNumber++;
-					fs << "frame " << frameNumber;
+					fs << "\nframe " << frameNumber << endl;
 					break;
 				}
 			}
@@ -584,7 +590,7 @@ int main(int argc, char *argv[])
 			}
 			printf("Reading image %s..\n", imageList[currentImageIndex].c_str());
 			view = imread(imageList[currentImageIndex], 1);
-			fs << "frame " << imageList[currentImageIndex];
+			fs << "frame " << imageList[currentImageIndex] << endl;
 			currentImageIndex++;
 		}
 
@@ -756,13 +762,46 @@ int main(int argc, char *argv[])
 
 					// log detected checkerboards
 					printf("a_to_B_x = %04.2f a_to_B_x = %04.2f a_to_B_x = %04.2f\n", eulerAtoB.x, eulerAtoB.y, eulerAtoB.z);
+					printf("b in a : x = %04.2f y = %04.2f z = %04.2f\n", frameBinA.x, frameBinA.y, frameBinA.z);
 					printf("distance A to B = %.2f\n", glm::length(vectorAtoB));
 
 				}
-				else
+
+
+				for (int i = 0; i < 3; i++)
 				{
-					// log that checkerboard detection has failed
-					printf("detection of checkerboards failed\n");
+					int index0, index1;
+					switch (i)
+					{
+						case 0: index0 = 0; index1 = 1; break;
+						case 1: index0 = 0; index1 = 2; break;
+						case 2: index0 = 1; index1 = 2; break;
+					}
+					if (cbPose[index0].found && cbPose[index1].found)
+					{
+						// log pose 0 to 1
+
+						glm::vec3 euler = glm::degrees(glm::eulerAngles(glm::quat(glm::inverse(cbPose[index0].rotationMatrixGLM) * cbPose[index1].rotationMatrixGLM)));
+						//glm::vec3 translation = cbPose[index1].translationVectorGLM - cbPose[index0].translationVectorGLM;
+
+						glm::vec4 v = glm::vec4(glm::vec3(0, 0, 0), 1.f);
+						glm::vec3 frameBinA = glm::inverse(cbPose[1].transformGLM) * cbPose[0].transformGLM * v;
+
+
+						char title[1024]; sprintf(title, "angle_%d_to_%d ", index0, index1);
+						char buffer[1024]; sprintf(buffer, "x = %04.2f, y = %04.2f, z = %04.2f\n", euler.x, euler.y, euler.z);
+						fs << title << buffer;
+						sprintf(title, "vector_%d_to_%d ", index0, index1);
+						sprintf(buffer, "x = %04.2f, y = %04.2f, z = %04.2f\n", frameBinA.x, frameBinA.y, frameBinA.z);
+						fs << title << buffer;
+					}
+				}
+				
+				// log if checkerboard detection has failed
+				if (!cbPose[0].found && !cbPose[1].found && !cbPose[2].found)
+				{
+					
+					fs << "detection of all checkerboards failed" << endl;
 				}
 
 				// draw regions of interests for different checkerboards
@@ -806,7 +845,7 @@ int main(int argc, char *argv[])
     }
 
 	// release log file
-	fs.release();
+	fs.close();
 
 	if (camera)
 	{
