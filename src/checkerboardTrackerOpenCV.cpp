@@ -283,52 +283,190 @@ void computeExtrinsics(Pose &pose, CameraCalibration &calib, cv::Size &boardSize
 
 }
 
+const char * usage =
+" \nexample command line for calibration for detecting checkerboards in given images.\n"
+"   checkerboardTrackerOpenCV.exe -c camercalibrationfile -i imagelistfile -s 6 -o mycam\n"
+" \nexample command line for calibration for detecting checkerboards from live feed.\n"
+"   checkerboardTrackerOpenCV.exe -c camercalibrationfile -id cameraID -s 6 -o mycam\n"
+" \n";
+
+static void help()
+{
+	printf("Checkerboard Detection in OpenCV\n"
+		"Usage:\n"
+		"     -c <file>			# camera precalibration file\n"
+		"     [-i <file>]		# image list file\n"
+		"     [-id <x>]			# camera id\n"
+		"     [-s <x>]			# square size in mm\n"
+		"     -o <result_file>		# the output filename for detected checkerboards\n"
+		"\n");
+	printf("%s", usage);
+}
+
+static bool readStringList(const string& filename, vector<string>& l)
+{
+	l.resize(0);
+	FileStorage fs(filename, FileStorage::READ);
+	if (!fs.isOpened())
+		return false;
+	FileNode n = fs.getFirstTopLevelNode();
+	if (n.type() != FileNode::SEQ)
+		return false;
+	FileNodeIterator it = n.begin(), it_end = n.end();
+	for (; it != it_end; ++it)
+		l.push_back((string)*it);
+	return true;
+}
+
+
 int main(int argc, char *argv[])
 {
 
-	std::string calibrationFile = std::string("calibration");
-	for (int i = 0; i < argc; i++)
+	//std::string calibrationFile = std::string("calibration");
+	bool useLiveFeed = true;
+	int cameraId = 0;
+	const char* outputFilename = "out_detection_data.yml";
+	const char* imageListFilename = "";
+	const char* calibrationFile = "";
+
+	float squareSize = 6.f;
+
+	if (argc < 2)
 	{
-		std::cout << i << " " << std::string(argv[i]).c_str() << std::endl;
+		help();
+		return 0;
 	}
-	if (argc > 1)
+
+
+	for (int i = 1; i < argc; i++)
 	{
-		calibrationFile = std::string(argv[1]);
+		const char* s = argv[i];
+
+		if (strcmp(s, "-s") == 0) // checkerboard square size
+		{
+			if (sscanf(argv[++i], "%f", &squareSize) != 1 || squareSize <= 0)
+				return fprintf(stderr, "Invalid board square width\n"), -1;
+		}
+		else if (strcmp(s, "-c") == 0) // camera calibration file
+		{
+			calibrationFile = argv[++i];
+		}
+		else if (strcmp(s, "-o") == 0) // result file
+		{
+			outputFilename = argv[++i];
+		}
+		else if (strcmp(s, "-i") == 0) // image list file
+		{
+			imageListFilename = argv[++i];
+		}
+		else if (strcmp(s, "-id") == 0) // camera id
+		{
+			if (sscanf(argv[++i], "%u", &cameraId) < 0)
+				return printf("Invalid camera id\n"), -1;
+		}
+		else
+			return fprintf(stderr, "Unknown option %s", s), -1;
 	}
-	std::cout << calibrationFile << std::endl;
+
+	// print configuration
+
+	if (std::string(calibrationFile).empty())
+		return printf("Invalid camera calibration file\n"), -1;
+	else
+		printf("Camera calibration file : %s\n", calibrationFile);
+
+	if (std::string(outputFilename).empty())
+		return printf("Invalid result file\n"), -1;
+	else
+		printf("Result file : %s\n", outputFilename);
+	
+	if (std::string(imageListFilename).empty())
+	{
+		useLiveFeed = true;
+		printf("using live feed from camera (id=%d)\n", cameraId);
+	}
+	else
+	{
+		useLiveFeed = false;
+		printf("using image list file : %s\n", imageListFilename);
+	}
+		
+
+	if (squareSize <= 0)
+		printf("Invalid checkerboard square size : %.2f\n", squareSize);
+	else
+		printf("Checkerboard square size : %.2f\n", squareSize);
+
+
+
 
 	// load camera calibration
 	CameraCalibration c;
-	if (!loadCameraParams(calibrationFile, c))
+	if (!loadCameraParams(std::string(calibrationFile), c))
 	{
-		printf("ERROR: Could not read calibration file '%s'\n", calibrationFile.c_str());
+		printf("ERROR: Could not read calibration file '%s'\n", calibrationFile);
 		return -1;
 	}
 
-	c.squareSize = 6.f;
 
+	//Size cameraImageSize;
+	cv::VideoCapture *camera = 0;
 
-	// open OpenCV camera
-	int cameraId = 1;
-	cv::VideoCapture camera(cameraId);
-	if (!camera.isOpened())
+	int nframes;
+	vector<string> imageList;
+	int currentImageIndex = 0;
+
+	if (useLiveFeed)
 	{
-		printf("ERROR: Could not open OpenCV camera\n");
-		return -1;
-	}
+		// open OpenCV camera
+		camera = new VideoCapture(cameraId);
+		
+		if (!camera->isOpened())
+		{
+			printf("ERROR: Could not open OpenCV camera\n");
+			return -1;
+		}
 
-	camera.set(CV_CAP_PROP_FRAME_WIDTH, c.calibrationImageWidth);
-	camera.set(CV_CAP_PROP_FRAME_HEIGHT, c.calibrationImageHeight);
+		camera->set(CV_CAP_PROP_FRAME_WIDTH, c.calibrationImageWidth);
+		camera->set(CV_CAP_PROP_FRAME_HEIGHT, c.calibrationImageHeight);
 	
-	printf("received camera resolution : %d x %d\n", (int)camera.get(CV_CAP_PROP_FRAME_WIDTH), (int)camera.get(CV_CAP_PROP_FRAME_HEIGHT));
+		printf("received camera resolution : %d x %d\n", (int)camera->get(CV_CAP_PROP_FRAME_WIDTH), (int)camera->get(CV_CAP_PROP_FRAME_HEIGHT));
 	
-	if (c.calibrationImageWidth != (int)camera.get(CV_CAP_PROP_FRAME_WIDTH) || c.calibrationImageHeight != (int)camera.get(CV_CAP_PROP_FRAME_HEIGHT))
+		if (c.calibrationImageWidth != (int)camera->get(CV_CAP_PROP_FRAME_WIDTH) || c.calibrationImageHeight != (int)camera->get(CV_CAP_PROP_FRAME_HEIGHT))
+		{
+			printf("ERROR: Camera resolution is different from camera calibrated resolution (%d x %d vs %d x %d)\n", c.calibrationImageWidth, c.calibrationImageHeight, (int)camera->get(CV_CAP_PROP_FRAME_WIDTH), (int)camera->get(CV_CAP_PROP_FRAME_HEIGHT));
+			return -1;
+		}
+
+		//cameraImageSize = Size((int)camera->get(CV_CAP_PROP_FRAME_WIDTH), (int)camera->get(CV_CAP_PROP_FRAME_HEIGHT));
+	}
+	else
 	{
-		printf("ERROR: Camera resolution is different from camera calibrated resolution (%d x %d vs %d x %d)\n", c.calibrationImageWidth, c.calibrationImageHeight, (int)camera.get(CV_CAP_PROP_FRAME_WIDTH), (int)camera.get(CV_CAP_PROP_FRAME_HEIGHT));
-		return -1;
+		if (imageListFilename)
+		{
+			if (readStringList(imageListFilename, imageList))
+			{
+				printf("Using image list : '%s' as input\n", imageListFilename);
+			}
+			else
+				return fprintf(stderr, "Could not initialize file list '%s'\n", imageListFilename), -2;
+		}
+		else
+			return fprintf(stderr, "No image list given\n"), -2;
+
+		if (!imageList.empty())
+		{
+			printf("Image list containing %d images\n", imageList.size());
+			nframes = (int)imageList.size();
+		}
+		else
+			return fprintf(stderr, "Image list is empty\n"), -2;
 	}
 
-	Size cameraImageSize = Size((int)camera.get(CV_CAP_PROP_FRAME_WIDTH), (int)camera.get(CV_CAP_PROP_FRAME_HEIGHT));
+
+
+
+
 	
 	//Size undistortedSize = cameraImageSize;
 	Size undistortedSize = c.imageSize;
@@ -354,17 +492,31 @@ int main(int argc, char *argv[])
 
 	while (true)
 	{
-		while (true)
+		if (useLiveFeed)
 		{
-			camera >> view;
-
-			if (view.size().empty())
+			while (true)
 			{
-				printf("no new camera frame yet\n");
-				Sleep(100);
+				*camera >> view;
+
+				if (view.size().empty())
+				{
+					printf("no new camera frame yet\n");
+					Sleep(100);
+				}
+				else
+					break;
 			}
-			else
+		}
+		else
+		{
+			if (currentImageIndex == nframes)
+			{
+				printf("Image list fully processed. Stopping main loop.\n");
 				break;
+			}
+			printf("Reading image %s..\n", imageList[currentImageIndex].c_str());
+			view = imread(imageList[currentImageIndex], 1);
+			currentImageIndex++;
 		}
 
 		cv::Mat undistortedImage = view.clone();
@@ -375,7 +527,7 @@ int main(int argc, char *argv[])
 			// detect checkerboard
 			Pose cb;
 			cb.found = findChessboardCorners(undistortedImage, c.boardSize, cb.pointbuf, CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FAST_CHECK | CV_CALIB_CB_NORMALIZE_IMAGE);
-								
+
 			if (cb.found)
 			{
 				// improve the found corners' coordinate accuracy
@@ -384,8 +536,8 @@ int main(int argc, char *argv[])
 					improveCheckerboardAccuracy(undistortedImage, cb.pointbuf);
 
 				//drawChessboardCorners(undistortedImage, c.boardSize, Mat(pointbuf), found);
-				computeExtrinsics(cb, c, c.boardSize, c.squareSize);
-				drawAxis(undistortedImage, c.cameraMatrix, c.distortionCoefficient, cb.rodrigesVector, cb.translationVector, 5 * c.squareSize);
+				computeExtrinsics(cb, c, c.boardSize, squareSize);
+				drawAxis(undistortedImage, c.cameraMatrix, c.distortionCoefficient, cb.rodrigesVector, cb.translationVector, 5 * squareSize);
 			}
 		}
 		else if (trackingMode == 1)
@@ -395,11 +547,11 @@ int main(int argc, char *argv[])
 				continue;
 
 			Pose cbPose[2];
-			
+
 			cv::Mat blacked[2];
 			blacked[0] = undistortedImage.clone();
 			blacked[1] = undistortedImage.clone();
-			cv::Rect roi_rect(0, 0, undistortedImage.size().width/2, undistortedImage.size().height);
+			cv::Rect roi_rect(0, 0, undistortedImage.size().width / 2, undistortedImage.size().height);
 			cv::Mat roiLeft(blacked[0], roi_rect);
 			roiLeft.setTo(Scalar(0));
 			roi_rect = cv::Rect(undistortedImage.size().width / 2, 0, undistortedImage.size().width / 2, undistortedImage.size().height);
@@ -410,7 +562,7 @@ int main(int argc, char *argv[])
 			for (int i = 0; i < 2; i++)
 			{
 				// detect checkerboard
-				cbPose[i].found = findChessboardCorners(blacked[i], c.boardSize, cbPose[i].pointbuf,CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FAST_CHECK | CV_CALIB_CB_NORMALIZE_IMAGE);
+				cbPose[i].found = findChessboardCorners(blacked[i], c.boardSize, cbPose[i].pointbuf, CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FAST_CHECK | CV_CALIB_CB_NORMALIZE_IMAGE);
 
 				if (cbPose[i].found)
 				{
@@ -420,23 +572,23 @@ int main(int argc, char *argv[])
 						improveCheckerboardAccuracy(blacked[i], cbPose[i].pointbuf, Size(11, 11));
 
 					//drawChessboardCorners(undistortedImage, c.boardSize, Mat(pointbuf), found);
-					computeExtrinsics(cbPose[i], c, c.boardSize, c.squareSize);
-					drawAxis(undistortedImage, c.cameraMatrix, c.distortionCoefficient, cbPose[i].rodrigesVector, cbPose[i].translationVector, 5 * c.squareSize);
+					computeExtrinsics(cbPose[i], c, c.boardSize, squareSize);
+					drawAxis(undistortedImage, c.cameraMatrix, c.distortionCoefficient, cbPose[i].rodrigesVector, cbPose[i].translationVector, 5 * squareSize);
 				}
 			}
-			
+
 
 			if (cbPose[0].found && cbPose[1].found)
 			{
 
 				cbPose[0].convertOpenCVtoGLM();
 				cbPose[1].convertOpenCVtoGLM();
-				
+
 			}
 		}
 		else if (trackingMode == 2)
 		{
-						
+
 			const int numCheckerboards = 3;
 			static Rect2d checkerboardRoi[numCheckerboards];
 			static bool allRoisSet = false;
@@ -449,7 +601,7 @@ int main(int argc, char *argv[])
 				bool fromCenter = false;
 				for (int i = 0; i < numCheckerboards; i++)
 				{
-					printf("select roi %d\n",i);
+					printf("select roi %d\n", i);
 					checkerboardRoi[i] = selectROI(windowName, undistortedImage, fromCenter);
 					if (checkerboardRoi[i].empty())
 					{
@@ -489,14 +641,14 @@ int main(int argc, char *argv[])
 
 						drawChessboardCorners(undistortedImage, c.boardSize, Mat(cbPose[i].pointbuf), cbPose[i].found);
 
-						computeExtrinsics(cbPose[i], c, c.boardSize, c.squareSize);
+						computeExtrinsics(cbPose[i], c, c.boardSize, squareSize);
 
-						drawAxis(undistortedImage, c.cameraMatrix, c.distortionCoefficient, cbPose[i].rodrigesVector, cbPose[i].translationVector, 5 * c.squareSize);
+						drawAxis(undistortedImage, c.cameraMatrix, c.distortionCoefficient, cbPose[i].rodrigesVector, cbPose[i].translationVector, 5 * squareSize);
 
 						cbPose[i].convertOpenCVtoGLM();
 					}
 				}
-				
+
 				if (cbPose[0].found && cbPose[1].found)
 				{
 					// compute angle from checkerboard A to checkerboard B
@@ -536,10 +688,25 @@ int main(int argc, char *argv[])
 			// find checkerboard in selected regions
 
 		}
-		
+
 
 		// show image
-		cv::imshow(windowName, undistortedImage);
+		// if image is small enough show it
+		if (undistortedImage.size().width <= 800 && undistortedImage.size().height <= 600)
+		{
+			cv::imshow(windowName, undistortedImage);
+		}
+		else
+		{
+			float resizeFactorWidth = (float)800 / (float)undistortedImage.size().width;
+			float resizeFactorHeight = (float)600 / (float)undistortedImage.size().height;
+			float combinedResizeFactor = (std::max(resizeFactorWidth, resizeFactorHeight));
+			cv::Mat resizedImg;
+			cv::resize(undistortedImage, resizedImg, cv::Size(undistortedImage.size().width * combinedResizeFactor,
+				undistortedImage.size().height * combinedResizeFactor));
+			cv::imshow(windowName, resizedImg);
+		}
+		
 
 		// quite program on keyboard input
 		char key = cvWaitKey(1);
@@ -565,9 +732,14 @@ int main(int argc, char *argv[])
 			break;
     }
 
-	std::cout << "\nCamera loop stopped.\n\n";
-	std::cout << "Disconnecting camera ...\n";
-	camera.release();
+	if (camera)
+	{
+		std::cout << "\nCamera loop stopped.\n\n";
+		std::cout << "Disconnecting camera ...\n";
+		camera->release();
+		delete camera;
+	}
+
     cv::destroyAllWindows();
 	std::cout << "done.\n\nRegular program exit.\n" << std::endl;
 

@@ -15,28 +15,55 @@ SHORT WINAPI GetAsyncKeyState(
 int main(int argc, char *argv[])
 {
 
-	std::string outputPrefix = std::string("default");
-	for (int i = 0; i < argc; i++)
-	{
-		std::cout << i << " " << std::string(argv[i]).c_str() << std::endl;
-	}
-	if (argc > 1)
-	{
-		outputPrefix = std::string(argv[1]);
-	}
-
-	std::cout << outputPrefix << std::endl;
-
+	//std::string outputPrefix = std::string("default");
+	char *outputPrefix = "default";
 	int cameraId = 0;
-	cv::VideoCapture camera(0);
 
 	int camera_width, camera_height;
-	
+
 	//camera_width = 1920;
 	//camera_height = 1080;
 
 	camera_width = 640;
 	camera_height = 480;
+
+	std::cout << outputPrefix << std::endl;
+
+	if (argc > 1)
+	{
+		for (int i = 1; i < argc; i++)
+		{
+			const char* s = argv[i];
+
+			if (strcmp(s, "-id") == 0) // camera id
+			{
+				if (sscanf(argv[++i], "%u", &cameraId) < 0)
+					return printf("Invalid camera id\n"), -1;
+			}
+			else if (strcmp(s, "-o") == 0) // output prefix
+			{
+				outputPrefix = argv[++i];
+			}
+			else if (strcmp(s, "-w") == 0) // camera width
+			{
+				if (sscanf(argv[++i], "%u", &camera_width) <= 0)
+					return printf("Invalid resolution width\n"), -1;
+			}
+			else if (strcmp(s, "-h") == 0) // camera height
+			{
+				if (sscanf(argv[++i], "%u", &camera_height) <= 0)
+					return printf("Invalid resolution height\n"), -1;
+			}
+			else
+				return fprintf(stderr, "Unknown option %s", s), -1;
+		}
+	}
+
+
+	
+	cv::VideoCapture camera(cameraId);
+
+
 
 	camera.set(CV_CAP_PROP_FRAME_WIDTH, camera_width);
 	camera.set(CV_CAP_PROP_FRAME_HEIGHT, camera_height);
