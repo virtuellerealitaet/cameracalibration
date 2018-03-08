@@ -324,6 +324,30 @@ static bool runAndSave(const string& outputFilename,
     return ok;
 }
 
+void showImage(cv::Mat &img, std::string &windowName, char &key, float &imageResizeFactor)
+{
+	// show image
+	// if image is small enough show it
+	if (img.size().width <= 800 && img.size().height <= 600)
+	{
+		imageResizeFactor = 1.f;
+		cv::imshow(windowName, img);
+	}
+	else
+	{
+		float resizeFactorWidth = (float)img.size().width / (float)800;
+		float resizeFactorHeight = (float)img.size().height / (float)600;
+		imageResizeFactor = 1.f / std::floor((std::max(resizeFactorWidth, resizeFactorHeight)));
+		printf("image resize factor on showimage %.2f\n", imageResizeFactor);
+
+		cv::Mat resizedImg;
+		cv::resize(img, resizedImg, cv::Size(img.size().width * imageResizeFactor, img.size().height * imageResizeFactor));
+		cv::imshow(windowName, resizedImg);
+	}
+
+	key = cvWaitKey(1);
+}
+
 
 int main( int argc, char** argv )
 {
@@ -529,8 +553,11 @@ int main( int argc, char** argv )
 		Point textOrigin(view.cols - 2 * textSize.width - 10, view.rows - 2 * baseLine - 10);
 		putText(view, msg, textOrigin, 1, 1, mode != CALIBRATED ? Scalar(0, 0, 255) : Scalar(0, 255, 0));
 
-        imshow("Image View", view);
-        int key = 0xff & waitKey(500);
+		char keypress = 0;
+		float resizeFactor;
+		showImage(view, std::string("Image View"), keypress, resizeFactor);
+
+        int key = 0xff & (int)keypress;
 
         if( (key & 255) == 27 )
             break;
@@ -597,8 +624,13 @@ int main( int argc, char** argv )
 			Point textOrigin(view.cols - 2 * textSize.width - 10, view.rows - 2 * baseLine - 10);
 			putText(view, msg, textOrigin, 1, 1, mode != CALIBRATED ? Scalar(0, 0, 255) : Scalar(0, 255, 0));
 
-            imshow("Image View", undistortedImage);
-            int c = 0xff & waitKey();
+            //imshow("Image View", undistortedImage);
+
+			char keypress = 0;
+			float resizeFactor;
+			showImage(undistortedImage, std::string("Image View"), keypress, resizeFactor);
+
+            int c = 0xff & (int)keypress;
             if( (c & 255) == 27 || c == 'q' || c == 'Q' )
                 break;
         }

@@ -88,11 +88,9 @@ struct Pose
 			std::string t_string;
 			char buffer[1024];
 
-			//fs << "rodriges vector " << rodrigesVector;
 			sprintf(buffer, "%.5f, %.5f, %.5f", (float)rodrigesVector.at<double>(0), (float)rodrigesVector.at<double>(1), (float)rodrigesVector.at<double>(2));
 			fs << "rodriges vector " << buffer << endl;
-
-			//fs << "translation " << translationVector;
+			
 			sprintf(buffer, "%.5f, %.5f, %.5f", translationVectorGLM.x, translationVectorGLM.y, translationVectorGLM.z);
 			fs << "translation " << buffer << endl;
 
@@ -200,6 +198,7 @@ void drawAxis(cv::Mat &_image, cv::Mat _cameraMatrix, cv::Mat _distCoeffs,
 	points.push_back(Point3f(length, length, 0));
 	points.push_back(Point3f(0, length, 0));
 	projectPoints(points, _rvec, _tvec, _cameraMatrix, _distCoeffs, imagePoints);
+
 	vector< Point > imgPoints;
 	imgPoints.push_back(imagePoints[0]);
 	imgPoints.push_back(imagePoints[1]);
@@ -275,6 +274,50 @@ void drawAxis(cv::Mat &_image, cv::Mat _cameraMatrix, cv::Mat _distCoeffs,
 	
 }
 
+//void computePose(Pose& pattern, const CameraCalibration& calibration, cv::Size &boardSize, float squareSize)
+//{
+//	cv::Mat Rvec;
+//	cv::Mat_<float> Tvec;
+//	cv::Mat raux, taux;
+//
+//	vector<Point3f> objectPoints;
+//	calcChessboardCorners(boardSize, squareSize, objectPoints);
+//	
+//	// not required if we are working on an undistorted frame
+//	//vector<Point2f> imagePoints;
+//	//undistortPoints(pattern.pointbuf, imagePoints, calibration.cameraMatrix, calibration.distortionCoefficient);
+//
+//	if (!cv::solvePnP(objectPoints, pattern.pointbuf, calibration.cameraMatrix, calibration.distortionCoefficient, raux, taux))
+//	{
+//		printf("ERROR : pose estimation failed\n");
+//		return;
+//	}
+//	raux.convertTo(Rvec, CV_32F);
+//	taux.convertTo(Tvec, CV_32F);
+//
+//	cv::Mat_<float> rotMat(3, 3);
+//	cv::Rodrigues(Rvec, rotMat);
+//
+//	pattern.translationVector = Tvec;
+//	pattern.rodrigesVector = Rvec;
+//	
+//
+//	// Copy to transformation matrix
+//	for (int col = 0; col<3; col++)
+//	{
+//		for (int row = 0; row<3; row++)
+//		{
+//			pattern.rotationMatrixGLM[row][col] = rotMat(row, col); // Copy rotation component
+//		}
+//		pattern.translationVectorGLM[col] = Tvec(col); // Copy translation component
+//	}
+//
+//	// Since solvePnP finds camera location, w.r.t to marker pose, to get marker pose w.r.t to the camera we invert it.
+//	//pose3d = pose3d.getInverted();
+//
+//	//pattern.convertOpenCVtoGLM();
+//}
+
 void computeExtrinsics(Pose &pose, CameraCalibration &calib, cv::Size &boardSize, float squareSize)
 {
 	vector<Point3f> objectPoints;
@@ -286,17 +329,17 @@ void computeExtrinsics(Pose &pose, CameraCalibration &calib, cv::Size &boardSize
 		objectPointsPlanar.push_back(Point2f(objectPoints[i].x, objectPoints[i].y));
 	}
 
-	vector<Point2f> imagePoints;
 
 	// not required if we are working on an undistorted frame
-	undistortPoints(pose.pointbuf, imagePoints, calib.cameraMatrix, calib.distortionCoefficient);
+	//vector<Point2f> imagePoints;
+	//undistortPoints(pose.pointbuf, imagePoints, calib.cameraMatrix, calib.distortionCoefficient);
 
-	Mat H = findHomography(objectPointsPlanar, imagePoints);
+
+
+	Mat H = findHomography(objectPointsPlanar, pose.pointbuf);
 	//cout << "H:\n" << H << endl;
 	// Normalization to ensure that ||c1|| = 1
-	double norm = sqrt(H.at<double>(0, 0)*H.at<double>(0, 0) +
-		H.at<double>(1, 0)*H.at<double>(1, 0) +
-		H.at<double>(2, 0)*H.at<double>(2, 0));
+	double norm = sqrt(H.at<double>(0, 0)*H.at<double>(0, 0) + H.at<double>(1, 0)*H.at<double>(1, 0) + H.at<double>(2, 0)*H.at<double>(2, 0));
 	H /= norm;
 	Mat c1 = H.col(0);
 	Mat c2 = H.col(1);
@@ -318,6 +361,8 @@ void computeExtrinsics(Pose &pose, CameraCalibration &calib, cv::Size &boardSize
 
 	Rodrigues(R, pose.rodrigesVector);
 	pose.translationVector = tvec;
+	
+	pose.convertOpenCVtoGLM();
 
 }
 
@@ -596,6 +641,18 @@ int main(int argc, char *argv[])
 			currentImageIndex++;
 		}
 
+		if (view.size().empty() && useLiveFeed)
+		{
+			printf("ERROR: camera input error at frame %d ! shutting down application\n", currentImageIndex);
+			break;
+		}
+		else if (view.size().empty())
+		{
+			printf("ERROR: image input error at frame %d ! shutting down application\n", frameNumber);
+			break;
+		}
+
+		// undistort frame
 		cv::Mat undistortedImage = view.clone();
 		cv::remap(view, undistortedImage, mapx, mapy, INTER_LINEAR);
 
@@ -612,7 +669,7 @@ int main(int argc, char *argv[])
 				if (refinement)
 					improveCheckerboardAccuracy(undistortedImage, cb.pointbuf);
 
-				//drawChessboardCorners(undistortedImage, c.boardSize, Mat(pointbuf), found);
+				drawChessboardCorners(undistortedImage, c.boardSize, Mat(cb.pointbuf), cb.found);
 				computeExtrinsics(cb, c, c.boardSize, squareSize);
 				drawAxis(undistortedImage, c.cameraMatrix, c.distortionCoefficient, cb.rodrigesVector, cb.translationVector, 5 * squareSize);
 			}
@@ -648,7 +705,7 @@ int main(int argc, char *argv[])
 					if (refinement)
 						improveCheckerboardAccuracy(blacked[i], cbPose[i].pointbuf, Size(11, 11));
 
-					//drawChessboardCorners(undistortedImage, c.boardSize, Mat(pointbuf), found);
+					drawChessboardCorners(undistortedImage, c.boardSize, Mat(cbPose[i].pointbuf), cbPose[i].found);
 					computeExtrinsics(cbPose[i], c, c.boardSize, squareSize);
 					drawAxis(undistortedImage, c.cameraMatrix, c.distortionCoefficient, cbPose[i].rodrigesVector, cbPose[i].translationVector, 5 * squareSize);
 				}
@@ -672,17 +729,21 @@ int main(int argc, char *argv[])
 			static Rect2d checkerboardRoi[numCheckerboards];
 			static bool allRoisSet = false;
 
+			allRoisSet = false;
+
 			if (!allRoisSet)
 			{
 				char key;
 				float imageResizeFactor = 1.f;
 				showImage(undistortedImage, windowName, key, imageResizeFactor);
 
+				allRoisSet = true;
+
 				// created user-selected regions of interest
 				//char key = cvWaitKey(1);
 				//if ((key & 255) == 52)
 				{
-					allRoisSet = true;
+					
 					bool fromCenter = false;
 					for (int i = 0; i < numCheckerboards; i++)
 					{
@@ -734,7 +795,7 @@ int main(int argc, char *argv[])
 						// improve the found corners' coordinate accuracy
 						bool refinement = true;
 						if (refinement)
-							improveCheckerboardAccuracy(roiImg, cbPose[i].pointbuf, cv::Size(11, 11));
+							improveCheckerboardAccuracy(roiImg, cbPose[i].pointbuf, cv::Size(30,30));
 
 						// add offset from roi position
 						cv::Point2f offset(checkerboardRoi[i].x, checkerboardRoi[i].y);
@@ -744,10 +805,11 @@ int main(int argc, char *argv[])
 						drawChessboardCorners(undistortedImage, c.boardSize, Mat(cbPose[i].pointbuf), cbPose[i].found);
 
 						computeExtrinsics(cbPose[i], c, c.boardSize, squareSize);
+						//computePose(cbPose[i], c, c.boardSize, squareSize);
 
 						drawAxis(undistortedImage, c.cameraMatrix, c.distortionCoefficient, cbPose[i].rodrigesVector, cbPose[i].translationVector, 5 * squareSize);
 
-						cbPose[i].convertOpenCVtoGLM();
+						
 					}
 
 					cbPose[i].logPose(fs, i);
@@ -834,6 +896,15 @@ int main(int argc, char *argv[])
 			// find checkerboard in selected regions
 
 		}
+
+		
+		if (!useLiveFeed)
+		{
+			char filename[1024];
+			sprintf(filename, "augmented_out_%d.png", currentImageIndex);
+			imwrite(filename, undistortedImage);
+		}
+
 
 		char key;
 		float imageResizeFactor = 1.f;
