@@ -53,7 +53,7 @@ struct Pose
 
 	vector<Point2f> pointbuf;
 
-	
+
 	glm::vec3 translationVectorGLM;
 	glm::mat3 rotationMatrixGLM;
 	glm::mat4 transformGLM;
@@ -75,7 +75,7 @@ struct Pose
 
 		// transformation matrix containing rotation and translation
 		transformGLM = glm::translate(glm::mat4(1.f), translationVectorGLM) * glm::mat4(rotationMatrixGLM);
-		
+
 	}
 
 	void logPose(ofstream &fs, int checkerboardId)
@@ -88,9 +88,11 @@ struct Pose
 			std::string t_string;
 			char buffer[1024];
 
+			//fs << "rodriges vector " << rodrigesVector;
 			sprintf(buffer, "%.5f, %.5f, %.5f", (float)rodrigesVector.at<double>(0), (float)rodrigesVector.at<double>(1), (float)rodrigesVector.at<double>(2));
 			fs << "rodriges vector " << buffer << endl;
-			
+
+			//fs << "translation " << translationVector;
 			sprintf(buffer, "%.5f, %.5f, %.5f", translationVectorGLM.x, translationVectorGLM.y, translationVectorGLM.z);
 			fs << "translation " << buffer << endl;
 
@@ -170,6 +172,8 @@ void drawAxis(cv::Mat &_image, cv::Mat _cameraMatrix, cv::Mat _distCoeffs,
 	CV_Assert(_image.total() != 0 && (_image.channels() == 1 || _image.channels() == 3));
 	CV_Assert(length > 0);
 
+	
+
 	// project axis points
 	vector< Point3f > axisPoints;
 	axisPoints.push_back(Point3f(0, 0, 0));
@@ -198,7 +202,6 @@ void drawAxis(cv::Mat &_image, cv::Mat _cameraMatrix, cv::Mat _distCoeffs,
 	points.push_back(Point3f(length, length, 0));
 	points.push_back(Point3f(0, length, 0));
 	projectPoints(points, _rvec, _tvec, _cameraMatrix, _distCoeffs, imagePoints);
-
 	vector< Point > imgPoints;
 	imgPoints.push_back(imagePoints[0]);
 	imgPoints.push_back(imagePoints[1]);
@@ -207,7 +210,7 @@ void drawAxis(cv::Mat &_image, cv::Mat _cameraMatrix, cv::Mat _distCoeffs,
 	int lineType = 8;
 	const cv::Point *pts = (const cv::Point*) imgPoints.data();
 	int npts = 4;
-	fillPoly(_image, &pts, &npts, 1, Scalar(0, 255, 0), lineType);
+	//fillPoly(_image, &pts, &npts, 1, Scalar(0, 255, 0), lineType);
 
 	float lineThickness = 2.f;
 	float v = length;
@@ -229,8 +232,8 @@ void drawAxis(cv::Mat &_image, cv::Mat _cameraMatrix, cv::Mat _distCoeffs,
 	line(_image, imagePoints[2], imagePoints[3], cv::Scalar(255, 0, 0), lineThickness);
 	line(_image, imagePoints[4], imagePoints[5], cv::Scalar(255, 0, 0), lineThickness);
 	line(_image, imagePoints[6], imagePoints[7], cv::Scalar(255, 0, 0), lineThickness);
-	
-	
+
+
 
 	// draw top layer in red
 	imagePoints.clear();
@@ -271,7 +274,7 @@ void drawAxis(cv::Mat &_image, cv::Mat _cameraMatrix, cv::Mat _distCoeffs,
 	//	putText(_image, msg, textOrigin, 1, 1, Scalar(0, 255, 0));
 	//}
 
-	
+
 }
 
 //void computePose(Pose& pattern, const CameraCalibration& calibration, cv::Size &boardSize, float squareSize)
@@ -329,17 +332,17 @@ void computeExtrinsics(Pose &pose, CameraCalibration &calib, cv::Size &boardSize
 		objectPointsPlanar.push_back(Point2f(objectPoints[i].x, objectPoints[i].y));
 	}
 
+	vector<Point2f> imagePoints;
 
 	// not required if we are working on an undistorted frame
-	//vector<Point2f> imagePoints;
-	//undistortPoints(pose.pointbuf, imagePoints, calib.cameraMatrix, calib.distortionCoefficient);
+	undistortPoints(pose.pointbuf, imagePoints, calib.cameraMatrix, calib.distortionCoefficient);
 
-
-
-	Mat H = findHomography(objectPointsPlanar, pose.pointbuf);
+	Mat H = findHomography(objectPointsPlanar, imagePoints);
 	//cout << "H:\n" << H << endl;
 	// Normalization to ensure that ||c1|| = 1
-	double norm = sqrt(H.at<double>(0, 0)*H.at<double>(0, 0) + H.at<double>(1, 0)*H.at<double>(1, 0) + H.at<double>(2, 0)*H.at<double>(2, 0));
+	double norm = sqrt(H.at<double>(0, 0)*H.at<double>(0, 0) +
+		H.at<double>(1, 0)*H.at<double>(1, 0) +
+		H.at<double>(2, 0)*H.at<double>(2, 0));
 	H /= norm;
 	Mat c1 = H.col(0);
 	Mat c2 = H.col(1);
@@ -361,8 +364,6 @@ void computeExtrinsics(Pose &pose, CameraCalibration &calib, cv::Size &boardSize
 
 	Rodrigues(R, pose.rodrigesVector);
 	pose.translationVector = tvec;
-	
-	pose.convertOpenCVtoGLM();
 
 }
 
@@ -416,7 +417,7 @@ void showImage(cv::Mat &img, std::string &windowName, char &key, float &imageRes
 		float resizeFactorWidth = (float)img.size().width / (float)800;
 		float resizeFactorHeight = (float)img.size().height / (float)600;
 		imageResizeFactor = 1.f / std::floor((std::max(resizeFactorWidth, resizeFactorHeight)));
-		printf("image resize factor on showimage %.2f\n", imageResizeFactor);
+		//printf("image resize factor on showimage %.2f\n", imageResizeFactor);
 
 		cv::Mat resizedImg;
 		cv::resize(img, resizedImg, cv::Size(img.size().width * imageResizeFactor, img.size().height * imageResizeFactor));
@@ -439,6 +440,8 @@ int main(int argc, char *argv[])
 	int trackingMode = 0; // 0 = single tracking mode, 1 = dual tracking mode
 
 	float squareSize = 6.f;
+	
+	static bool allRoisSet = false;
 
 	if (argc < 2)
 	{
@@ -654,7 +657,7 @@ int main(int argc, char *argv[])
 
 		// undistort frame
 		cv::Mat undistortedImage = view.clone();
-		cv::remap(view, undistortedImage, mapx, mapy, INTER_LINEAR);
+		//cv::remap(view, undistortedImage, mapx, mapy, INTER_LINEAR);
 
 		if (trackingMode == 0)
 		{
@@ -671,6 +674,9 @@ int main(int argc, char *argv[])
 
 				drawChessboardCorners(undistortedImage, c.boardSize, Mat(cb.pointbuf), cb.found);
 				computeExtrinsics(cb, c, c.boardSize, squareSize);
+				cb.convertOpenCVtoGLM();
+				printf("%.2f %.2f %.2f\n", cb.translationVectorGLM.x, cb.translationVectorGLM.y, cb.translationVectorGLM.z);
+				cb.logPose(fs, 0);
 				drawAxis(undistortedImage, c.cameraMatrix, c.distortionCoefficient, cb.rodrigesVector, cb.translationVector, 5 * squareSize);
 			}
 		}
@@ -727,9 +733,9 @@ int main(int argc, char *argv[])
 
 			const int numCheckerboards = 3;
 			static Rect2d checkerboardRoi[numCheckerboards];
-			static bool allRoisSet = false;
-
-			allRoisSet = false;
+			
+			if (!useLiveFeed)
+				allRoisSet = false;
 
 			if (!allRoisSet)
 			{
@@ -806,6 +812,8 @@ int main(int argc, char *argv[])
 
 						computeExtrinsics(cbPose[i], c, c.boardSize, squareSize);
 						//computePose(cbPose[i], c, c.boardSize, squareSize);
+
+						cbPose[i].convertOpenCVtoGLM();
 
 						drawAxis(undistortedImage, c.cameraMatrix, c.distortionCoefficient, cbPose[i].rodrigesVector, cbPose[i].translationVector, 5 * squareSize);
 
@@ -927,6 +935,7 @@ int main(int argc, char *argv[])
 		else if ((key & 255) == 51)
 		{
 			trackingMode = 2;
+			allRoisSet = false;
 			printf("User-selected ROI\n");
 		}
 				
