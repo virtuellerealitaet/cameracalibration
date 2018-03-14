@@ -405,6 +405,45 @@ void showImage(cv::Mat &img, std::string &windowName, char &key, float &imageRes
 	key = cvWaitKey(1);
 }
 
+static void computeFov(cv::Mat &cameraMatrix, cv::Size imageSize, double &fovH, double &fovV)
+{
+	double fx, fy; // focal lengths in x and y
+	double x, y; // image dimension
+	double s; //
+
+	fx = cameraMatrix.at<double>(0, 0);
+	fy = cameraMatrix.at<double>(1, 1);
+	s = cameraMatrix.at<double>(0, 1);
+	x = cameraMatrix.at<double>(0, 2);
+	y = cameraMatrix.at<double>(1, 2);
+
+	double ident = cameraMatrix.at<double>(2, 2);
+
+	//	f_x		s		x
+	//	0		f_y		y
+	//	0		0		1
+
+	printf("fx : %.2f\n", (float)fx);
+	printf("fy : %.2f\n", (float)fy);
+	printf("s : %.2f\n", (float)s);
+	printf("x : %.2f\n", (float)x);
+	printf("y : %.2f\n", (float)y);
+	printf("ident : %.2f\n", (float)ident);
+
+	double imgWidth = imageSize.width;
+	double imgHeight = imageSize.height;
+
+
+	fovH = 2 * atan(imgWidth / (2 * fx)) * 180.0 / CV_PI;
+	fovV = 2 * atan(imgHeight / (2 * fy)) * 180.0 / CV_PI;
+
+	printf("FOV horizontal : %.2f\n", (float)fovH);
+	printf("FOV vertical : %.2f\n", (float)fovV);
+
+	printf("principal points : %.2f, %.2f\n", (float)(imgWidth /fx), (float)(imgHeight /fy));
+
+	
+}
 
 int main(int argc, char** argv)
 {
@@ -661,7 +700,7 @@ int main(int argc, char** argv)
 	else
 	{
 		// load calibration from file
-		printf("loading calibration file");
+		printf("loading calibration file\n");
 
 		if (!loadCameraParams(std::string(outputFilename), c))
 		{
@@ -673,100 +712,199 @@ int main(int argc, char** argv)
 		showUndistorted = true;
 	}
 
+	
+	
+
 
 	if (mode == CALIBRATED &&  showUndistorted)
 	{
 		Mat view, rview, map1, map2;
 
-		for (i = 0; i < (int)imageList.size(); i++)
+		float balance = 1.0; // 0.0 crop to visible pixels, 1.0 maintain all pixels from original image
+		float divisor_new_focal_length = 2.0;
+
+		//for (i = 0; i < (int)imageList.size(); i++)
+		int i = 0;
+		while(true)
 		{
 			view = imread(imageList[i], 1);
 			if (!view.data)
 				continue;
 
 			Mat temp = view.clone();
-			//Mat undistortedImage = view.clone();
-
-			//float alpha = 0.0; // returns undistorted image with minimum unwanted pixels
-			float alpha = 1.0; // all pixels are retained with some extra black images
+			Mat undistortedImage;
 			
-			// Option A: call undistort directly
-			//cv::Mat roi = getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, alpha); // compute region of interest for undistortion using specified alpha
-			//undistort(temp, undistortedImage, cameraMatrix, distCoeffs, roi);
-			//fisheye::estimateNewCameraMatrixForUndistortRectify()
 			
-			//Mat identity = Mat::eye(3, 3, CV_64F);
-			//fisheye::undistortImage(temp, undistortedImage, cameraMatrix, distCoeffs, identity);
 
 
-			// Option B : initialize and apply remap
-			//Mat mapx, mapy;
-			//initUndistortRectifyMap(cameraMatrix, distCoeffs, Mat(), roi, imageSize, CV_16SC2, mapx, mapy);
-			//remap(temp, undistortedImage, mapx, mapy, INTER_LINEAR);
+			Mat updateCameraMatrix;
 
-			//Mat map1, map2;
-			//Mat R, P;
-			//cv::Size undistortedImageSize;
-			//fisheye::initUndistortRectifyMap(cameraMatrix, distCoeffs, R, P, undistortedImageSize, CV_16SC2, map1, map2);
-			//remap(temp, undistortedImage, map1, map2, INTER_LINEAR, BORDER_CONSTANT);
+			imageSize = temp.size();
+			
+			cv::Size updatedImageSize = imageSize;
 
-			cv::Size imgSize = temp.size();
-
-			Mat newK;
-			float balance = 1.0; // 0.0 crop to visible pixels, 1.0 maintain all pixels from original image
-			float divisor_new_focal_length = 2.0;
-
-			cv::Size newSize = temp.size();
 			//newSize = newSize * 2;
 
-			Mat undistortedImage;
+			double fovH, fovV;
+			computeFov(c.cameraMatrix, imageSize, fovH, fovV);
+
+#if 0
+			updatedImageSize = imageSize;
 
 			fisheye::estimateNewCameraMatrixForUndistortRectify(
 				c.cameraMatrix,
 				c.distortionCoefficient,
 				temp.size(), // input: set size of distorted image
 				Matx33d::eye(), // unused - rectification transform
-				newK, // output: new camera matrix
+				updateCameraMatrix, // output: new camera matrix
 				balance, // input: 0.0 crop to visible pixels, 1.0 maintain all pixels from original image
-				newSize, // input: set size of undistorted image
+				updatedImageSize, // input: set size of undistorted image
 				divisor_new_focal_length); // FOV divisor
 
-			printf("new size %d x %d", newSize.width, newSize.height);
+			printf("updatedImageSize %d x %d\n", updatedImageSize.width, updatedImageSize.height);
+
+			computeFov(updateCameraMatrix, updatedImageSize, fovH, fovV);
 
 			fisheye::initUndistortRectifyMap(
 				c.cameraMatrix,
 				c.distortionCoefficient,
 				Matx33d::eye(),
-				newK,
-				newSize,
+				updateCameraMatrix,
+				updatedImageSize,
 				CV_16SC2,
 				map1,
 				map2);
 			remap(temp, undistortedImage, map1, map2, INTER_LINEAR, BORDER_CONSTANT);
-						
-			string msg;
-			msg = format("%d/%d Undistorted\n", (int)imagePoints.size(), nframes);
+
+			computeFov(updateCameraMatrix, updatedImageSize, fovH, fovV);
+#else
+			updateCameraMatrix = c.cameraMatrix;
+			updatedImageSize = imageSize;
+			
+
+			fisheye::initUndistortRectifyMap(
+				c.cameraMatrix,
+				c.distortionCoefficient,
+				Matx33d::eye(),
+				c.cameraMatrix,
+				updatedImageSize,
+				CV_16SC2,
+				map1,
+				map2);
+			cv::remap(temp, undistortedImage, map1, map2, INTER_LINEAR, BORDER_CONSTANT);
+
+#endif
+
+			// draw principial point
+
+
+			// draw circles of eccentricity
+
+
+			
+			// eccentricities
+			double drawFov = 0;
+
+			while (true)
+			{
+				// compute radius from field of view
+				//fovH = 2 * atan(imgWidth / (2 * fx)) * 180.0 / CV_PI;
+
+				//double fx = c.cameraMatrix.at<double>(0, 0);
+				//double fx = newK.at<double>(0, 0);
+
+				//float radius = tan(drawFov / (180.0 / CV_PI) / 2) * (2 * fx) / 2;
+				//fov = atan(x *0.5 / fx)
+				//tan(fov) = tan(atan(x *0.5 / fx))
+				//tan(fov) = x *0.5 / fx
+				//tan(fov) * fx = x *0.5
+				//tan(fov) * fx * 2 = x
+				
+				//float radius = tan(drawFov / (180.0 / CV_PI) / 2) * (fx) * 2;
+				//float radius = tan(drawFov / (180.0 / CV_PI)) * fx * 2;
+				//alpha = 2 * atan (d/2f)
+				
+				//std::cout << "radius : " << radius << std::endl;
+				
+				double fovX, fovY, focalLength, aspectRatio;
+				cv::Point2d principalPoint;
+
+				double sensorSizeX = 6.17; // only valid for gopro camera
+				double sensorSizeY = 4.63; // only valid for gopro camera
+
+				calibrationMatrixValues(updateCameraMatrix, updatedImageSize, sensorSizeX, sensorSizeY, fovX, fovY, focalLength, principalPoint, aspectRatio);
+
+				// show center -> project principal point into image
+				//cv::Point principalPointImage = cv::Point(updateCameraMatrix.at<double>(0, 2), updateCameraMatrix.at<double>(1, 2));
+								
+				cv::Point principalPointImage = cv::Point(principalPoint.x / sensorSizeX * updatedImageSize.width,
+					principalPoint.y / sensorSizeY * updatedImageSize.height);
+				circle(undistortedImage, principalPointImage, 10, cv::Scalar(0, 0, 255), -1);
+
+
+				//float radius = fovX;
+				//circle(undistortedImage, principalPoint, radius, cv::Scalar(0, 255, 0), 5);
+				//char msg[1024];
+				//putText(undistortedImage, cv::format("%d", (int)drawFov), cv::Point(principalPoint.x + radius, principalPoint.y + (radius * .0)), 1, 2, Scalar(0, 255, 0),5);
+
+				//if (drawFov > 0)
+				//{
+				//	putText(undistortedImage, cv::format("%d", (int)drawFov), cv::Point(principalPoint.x - radius - 40, principalPoint.y), 1, 2, Scalar(0, 255, 0), 5);
+				//	putText(undistortedImage, cv::format("%d", (int)drawFov), cv::Point(principalPoint.x, principalPoint.y + radius +30), 1, 2, Scalar(0, 255, 0), 5);
+				//	putText(undistortedImage, cv::format("%d", (int)drawFov), cv::Point(principalPoint.x, principalPoint.y - radius), 1, 2, Scalar(0, 255, 0), 5);
+				//}
+
+				// compute radius
+				if (drawFov > fovH)
+					break;
+
+				drawFov += 5;
+				
+			}
+			
 			printf("%d/%d Undistorted\n", (int)imagePoints.size(), nframes);
-
-			int baseLine = 0;
-			Size textSize = getTextSize(msg, 1, 1, 1, &baseLine);
-			Point textOrigin(view.cols - 2 * textSize.width - 10, view.rows - 2 * baseLine - 10);
-			putText(view, msg, textOrigin, 1, 1, mode != CALIBRATED ? Scalar(0, 0, 255) : Scalar(0, 255, 0));
-
 			printf("image size %d x %d", undistortedImage.size().width, undistortedImage.size().height);
 
 			char keypress = 0;
 			float resizeFactor;
 			showImage(undistortedImage, std::string("Image View"), keypress, resizeFactor);
-			cvWaitKey(0);
+			
+			keypress = cvWaitKey(0);
 
-			char filename[1024];
-			sprintf(filename, "%s_undistorted.jpg", imageList[i].c_str());
-			imwrite(filename, undistortedImage);
+			//char filename[1024];
+			//sprintf(filename, "%s_undistorted.jpg", imageList[i].c_str());
+			//imwrite(filename, undistortedImage);
 
 			int c = 0xff & (int)keypress;
 			if ((c & 255) == 27 || c == 'q' || c == 'Q')
 				break;
+			if (c == 'n')
+			{
+				i++;
+				if (i == (int)imageList.size())
+					break;
+			}
+			if (c == '1')
+			{
+				balance -= 0.1;
+				balance = max(0.f, balance);
+			}
+			if (c == '2')
+			{
+				balance += 0.1;
+				balance = min(1.f, balance);
+			}
+			if (c == '3')
+			{
+				divisor_new_focal_length -= 0.1;
+				divisor_new_focal_length = max(0.f, divisor_new_focal_length);
+			}
+			if (c == '4')
+			{
+				divisor_new_focal_length += 0.1;
+				divisor_new_focal_length = min(3.f, divisor_new_focal_length);
+			}
+
 		}
 	}
 
