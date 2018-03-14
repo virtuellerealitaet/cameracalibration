@@ -748,7 +748,7 @@ int main(int argc, char** argv)
 			double fovH, fovV;
 			computeFov(c.cameraMatrix, imageSize, fovH, fovV);
 
-#if 0
+#if 1
 			updatedImageSize = imageSize;
 
 			fisheye::estimateNewCameraMatrixForUndistortRectify(
@@ -802,8 +802,23 @@ int main(int argc, char** argv)
 
 
 			
-			// eccentricities
+			// eccentricities in degrees
 			double drawFov = 0;
+
+			double fovX, fovY, focalLength, aspectRatio;
+			cv::Point2d principalPoint;
+
+			double sensorSizeX = 6.17; // only valid for gopro camera
+			double sensorSizeY = 4.63; // only valid for gopro camera
+
+			calibrationMatrixValues(updateCameraMatrix, updatedImageSize, sensorSizeX, sensorSizeY, fovX, fovY, focalLength, principalPoint, aspectRatio);
+
+			// show center -> project principal point into image
+			//cv::Point principalPointImage = cv::Point(updateCameraMatrix.at<double>(0, 2), updateCameraMatrix.at<double>(1, 2));
+
+			cv::Point principalPointImage = cv::Point(principalPoint.x / sensorSizeX * updatedImageSize.width,
+				principalPoint.y / sensorSizeY * updatedImageSize.height);
+			circle(undistortedImage, principalPointImage, 10, cv::Scalar(0, 0, 255), -1);
 
 			while (true)
 			{
@@ -826,26 +841,42 @@ int main(int argc, char** argv)
 				
 				//std::cout << "radius : " << radius << std::endl;
 				
-				double fovX, fovY, focalLength, aspectRatio;
-				cv::Point2d principalPoint;
+				if (drawFov > 90)
+					break;
 
-				double sensorSizeX = 6.17; // only valid for gopro camera
-				double sensorSizeY = 4.63; // only valid for gopro camera
+				double drawFovRad = drawFov / (180.0 / CV_PI);
+				
+				// rotate a point about alpha
+				cv::Point3f p;
+				
+				p.z = cos(drawFovRad);
+				p.x = sqrt(1 - (p.z*p.z)); // create normalized vector in direction of eccentricity
+				p = p * 100;
 
-				calibrationMatrixValues(updateCameraMatrix, updatedImageSize, sensorSizeX, sensorSizeY, fovX, fovY, focalLength, principalPoint, aspectRatio);
 
-				// show center -> project principal point into image
-				//cv::Point principalPointImage = cv::Point(updateCameraMatrix.at<double>(0, 2), updateCameraMatrix.at<double>(1, 2));
-								
-				cv::Point principalPointImage = cv::Point(principalPoint.x / sensorSizeX * updatedImageSize.width,
-					principalPoint.y / sensorSizeY * updatedImageSize.height);
-				circle(undistortedImage, principalPointImage, 10, cv::Scalar(0, 0, 255), -1);
+				std::vector<Point3f> eccPoints;
+				eccPoints.push_back(p);
 
+				//objectPoints.resize(imagePoints.size(), objectPoints[0]);
+				
+				cv::Affine3d affine = cv::Affine3d::Identity();
+				std::vector<Point2f> imgPoints;
+				imgPoints.resize(1);
+
+				cv::Mat rvec, tvec;
+				rvec = Mat::zeros(cv::Size(1, 3), CV_64F);
+				tvec = Mat::zeros(cv::Size(1, 3), CV_64F);
+				//cv::fisheye::projectPoints(eccPoints, imgPoints, rvec, tvec, updateCameraMatrix, c.distortionCoefficient);
+				cv::fisheye::projectPoints(eccPoints, imgPoints, affine, updateCameraMatrix, c.distortionCoefficient);
+				
+				// compute radius
+				cv::Point2f diffFromPrincipalPoint = imgPoints[0] - cv::Point2f(principalPointImage);
+				double radius = diffFromPrincipalPoint.x;
 
 				//float radius = fovX;
-				//circle(undistortedImage, principalPoint, radius, cv::Scalar(0, 255, 0), 5);
-				//char msg[1024];
-				//putText(undistortedImage, cv::format("%d", (int)drawFov), cv::Point(principalPoint.x + radius, principalPoint.y + (radius * .0)), 1, 2, Scalar(0, 255, 0),5);
+				circle(undistortedImage, principalPointImage, (int)radius, cv::Scalar(0, 255, 0),5);
+				char msg[1024];
+				putText(undistortedImage, cv::format("%d", (int)drawFov), cv::Point(principalPointImage.x + radius, principalPointImage.y), 1, 2, Scalar(0, 255, 0),5);
 
 				//if (drawFov > 0)
 				//{
