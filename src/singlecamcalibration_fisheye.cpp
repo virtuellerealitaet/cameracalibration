@@ -989,43 +989,20 @@ int main(int argc, char** argv)
 			{
 				while (true)
 				{
-					// compute radius from field of view
-					//fovH = 2 * atan(imgWidth / (2 * fx)) * 180.0 / CV_PI;
-
-					//double fx = c.cameraMatrix.at<double>(0, 0);
-					//double fx = newK.at<double>(0, 0);
-
-					//float radius = tan(drawFov / (180.0 / CV_PI) / 2) * (2 * fx) / 2;
-					//fov = atan(x *0.5 / fx)
-					//tan(fov) = tan(atan(x *0.5 / fx))
-					//tan(fov) = x *0.5 / fx
-					//tan(fov) * fx = x *0.5
-					//tan(fov) * fx * 2 = x
-				
-					//float radius = tan(drawFov / (180.0 / CV_PI) / 2) * (fx) * 2;
-					//float radius = tan(drawFov / (180.0 / CV_PI)) * fx * 2;
-					//alpha = 2 * atan (d/2f)
-				
-					//std::cout << "radius : " << radius << std::endl;
-				
 					if (drawFov > 90)
 						break;
 
 					double drawFovRad = drawFov / 180.0 * CV_PI;
 				
-					// rotate a point about alpha
+					// rotate a point about angle alpha
 					cv::Point3f p;
-				
 					p.z = cos(drawFovRad);
 					p.x = sqrt(1 - (p.z*p.z)); // create normalized vector in direction of eccentricity
 					p = p * 100;
-				
-
 
 					std::vector<Point3f> eccPoints;
 					eccPoints.push_back(p);
-							
-								
+						
 					cv::Affine3d affine = cv::Affine3d::Identity();
 					std::vector<Point2f> imgPoints;
 					imgPoints.resize(1);
@@ -1033,7 +1010,6 @@ int main(int argc, char** argv)
 					rvec = Mat::zeros(cv::Size(1, 3), CV_64F);
 					tvec = Mat::zeros(cv::Size(1, 3), CV_64F);
 
-					//cv::fisheye::projectPoints(eccPoints, imgPoints, rvec, tvec, updateCameraMatrix, c.distortionCoefficient);
 					cv::fisheye::projectPoints(eccPoints,
 						imgPoints,
 						affine,
