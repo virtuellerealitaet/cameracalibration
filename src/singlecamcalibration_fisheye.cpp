@@ -164,6 +164,26 @@ static void calcChessboardCorners(Size boardSize, float squareSize, vector<Point
 	}
 }
 
+std::vector<cv::Point3f> Create3DChessboardCorners(cv::Size boardSize, float squareSize)
+{
+	// This function creates the 3D points of your chessboard in its own coordinate system
+	float width = (boardSize.width - 1)*squareSize;
+	float height = (boardSize.height - 1)*squareSize;
+
+
+	std::vector<cv::Point3f> corners;
+
+	for (int i = 0; i < boardSize.height; i++)
+	{
+		for (int j = 0; j < boardSize.width; j++)
+		{
+			corners.push_back(cv::Point3f(float(j*squareSize) - width, float(i*squareSize) - height, 0));
+		}
+	}
+
+	return corners;
+}
+
 static bool runCalibration(vector<vector<Point2f> > imagePoints,
 	Size imageSize, Size boardSize, Pattern patternType,
 	float squareSize, float aspectRatio,
@@ -182,13 +202,23 @@ static bool runCalibration(vector<vector<Point2f> > imagePoints,
 
 	vector<vector<Point3f> > objectPoints(1);
 	calcChessboardCorners(boardSize, squareSize, objectPoints[0], patternType);
+	//objectPoints[0] = Create3DChessboardCorners(boardSize, squareSize);
 
 	objectPoints.resize(imagePoints.size(), objectPoints[0]);
 
 	int flag = 0;
-	flag |= cv::fisheye::CALIB_RECOMPUTE_EXTRINSIC;
-	flag |= cv::fisheye::CALIB_CHECK_COND;
-	flag |= cv::fisheye::CALIB_FIX_SKEW;
+	//flag |= cv::fisheye::CALIB_USE_INTRINSIC_GUESS;
+	//flag |= cv::fisheye::CALIB_RECOMPUTE_EXTRINSIC;
+	//flag |= cv::fisheye::CALIB_CHECK_COND;
+	//flag |= cv::fisheye::CALIB_FIX_SKEW;
+	
+	flag |= cv::fisheye::CALIB_FIX_K1;
+	flag |= cv::fisheye::CALIB_FIX_K2;
+	flag |= cv::fisheye::CALIB_FIX_K3;
+	flag |= cv::fisheye::CALIB_FIX_K4;
+	//flag |= cv::fisheye::CALIB_FIX_INTRINSIC;
+	flag |= cv::fisheye::CALIB_FIX_PRINCIPAL_POINT;
+
 
 	double rms = fisheye::calibrate(objectPoints, imagePoints, imageSize,
 		cameraMatrix, // K
@@ -405,7 +435,7 @@ void showImage(cv::Mat &img, std::string &windowName, char &key, float &imageRes
 	key = cvWaitKey(1);
 }
 
-static void computeFov(cv::Mat &cameraMatrix, cv::Size imageSize, double &fovH, double &fovV)
+static void computeFov(const cv::Mat cameraMatrix, cv::Size imageSize, double &fovH, double &fovV)
 {
 	double fx, fy; // focal lengths in x and y
 	double x, y; // image dimension
@@ -434,8 +464,8 @@ static void computeFov(cv::Mat &cameraMatrix, cv::Size imageSize, double &fovH, 
 	double imgHeight = imageSize.height;
 
 
-	fovH = 2 * atan(imgWidth / (2 * fx)) * 180.0 / CV_PI;
-	fovV = 2 * atan(imgHeight / (2 * fy)) * 180.0 / CV_PI;
+	fovH = 2 * atan(imgWidth / (fx)) * 180.0 / CV_PI; // analog : sensor width / focal length
+	fovV = 2 * atan(imgHeight / (fy)) * 180.0 / CV_PI;
 
 	printf("FOV horizontal : %.2f\n", (float)fovH);
 	printf("FOV vertical : %.2f\n", (float)fovV);
@@ -713,23 +743,37 @@ int main(int argc, char** argv)
 	}
 
 	
-	
-
+	if (showUndistorted)
+		printf("showing undistorted\n");
 
 	if (mode == CALIBRATED &&  showUndistorted)
 	{
+			
+
+		int visualizationMode = 0; // 0 - draw checkerboard, 1 - draw degrees, 2 = none
+
+
 		Mat view, rview, map1, map2;
 
 		float balance = 1.0; // 0.0 crop to visible pixels, 1.0 maintain all pixels from original image
 		float divisor_new_focal_length = 2.0;
 
+		i = 0;
+
+		printf("Input image  %d / %d : %s", i, nframes, imageList[i].c_str());
+
 		//for (i = 0; i < (int)imageList.size(); i++)
-		int i = 0;
+		//int i = 0;
 		while(true)
 		{
+
+			//printf("image %d loaded\n", i);
+
 			view = imread(imageList[i], 1);
 			if (!view.data)
 				continue;
+
+
 
 			Mat temp = view.clone();
 			Mat undistortedImage;
@@ -742,8 +786,6 @@ int main(int argc, char** argv)
 			imageSize = temp.size();
 			
 			cv::Size updatedImageSize = imageSize;
-
-			//newSize = newSize * 2;
 
 			double fovH, fovV;
 			computeFov(c.cameraMatrix, imageSize, fovH, fovV);
@@ -774,7 +816,11 @@ int main(int argc, char** argv)
 				CV_16SC2,
 				map1,
 				map2);
-			remap(temp, undistortedImage, map1, map2, INTER_LINEAR, BORDER_CONSTANT);
+						
+			// undistort image
+			undistortedImage = temp;
+			
+			
 
 			computeFov(updateCameraMatrix, updatedImageSize, fovH, fovV);
 #else
@@ -820,78 +866,220 @@ int main(int argc, char** argv)
 				principalPoint.y / sensorSizeY * updatedImageSize.height);
 			circle(undistortedImage, principalPointImage, 10, cv::Scalar(0, 0, 255), -1);
 
+			
+
+
+
+#if 0
+
+			// compute object points 
+
+			float z = 14.3f;
+			float y = 0.0f;
+
+			float limitx = -23.f;
+			float x = limitx;
+
+			std::vector<Point3f> eccPoints;
+
+
 			while (true)
 			{
-				// compute radius from field of view
-				//fovH = 2 * atan(imgWidth / (2 * fx)) * 180.0 / CV_PI;
 
-				//double fx = c.cameraMatrix.at<double>(0, 0);
-				//double fx = newK.at<double>(0, 0);
-
-				//float radius = tan(drawFov / (180.0 / CV_PI) / 2) * (2 * fx) / 2;
-				//fov = atan(x *0.5 / fx)
-				//tan(fov) = tan(atan(x *0.5 / fx))
-				//tan(fov) = x *0.5 / fx
-				//tan(fov) * fx = x *0.5
-				//tan(fov) * fx * 2 = x
-				
-				//float radius = tan(drawFov / (180.0 / CV_PI) / 2) * (fx) * 2;
-				//float radius = tan(drawFov / (180.0 / CV_PI)) * fx * 2;
-				//alpha = 2 * atan (d/2f)
-				
-				//std::cout << "radius : " << radius << std::endl;
-				
-				if (drawFov > 90)
+				if (x > abs(limitx))
 					break;
 
-				double drawFovRad = drawFov / (180.0 / CV_PI);
-				
-				// rotate a point about alpha
-				cv::Point3f p;
-				
-				p.z = cos(drawFovRad);
-				p.x = sqrt(1 - (p.z*p.z)); // create normalized vector in direction of eccentricity
-				p = p * 100;
-
-
-				std::vector<Point3f> eccPoints;
+				Point3f p(x, y, z);
 				eccPoints.push_back(p);
 
-				//objectPoints.resize(imagePoints.size(), objectPoints[0]);
+				x += 5.f;
+
+			}
+
+			cv::Affine3d affine = cv::Affine3d::Identity();
+			std::vector<Point2f> imgPoints;
+			imgPoints.resize(eccPoints.size());
+			cv::Mat rvec, tvec;
+			rvec = Mat::zeros(cv::Size(1, 3), CV_64F);
+			tvec = Mat::zeros(cv::Size(1, 3), CV_64F);
+						
+			
+			cv::fisheye::projectPoints(eccPoints,
+				imgPoints,
+				affine,
+				c.cameraMatrix,
+				c.distortionCoefficient);
+
+			std::vector<Point2f> undistortedPoints;
 				
+
+			for (int i = 0; i < imgPoints.size(); i++)
+			{
+				circle(temp, imgPoints[i], (int)5, cv::Scalar(0, 255, 0), 5);
+
+				char msg[1024];
+				putText(undistortedImage, cv::format("%.1f", eccPoints[i].x), cv::Point(imgPoints[i].x- 40, imgPoints[i].y +50), 1, 2, Scalar(0, 255, 0), 5);
+			}
+
+#endif
+
+			if (visualizationMode == 0) // draw checkerboard
+			{
+				// compute object points 
+
+				//c.squareSize
+				float gridDistance = 150.f;
+			
+				std::vector<Point3f> gridPoints;
+
+				int numHorPoints = 10;
+				int numVertPoints = 7;
+				int interpolationDensity = 10;
+
+				for (int x = -numHorPoints/2; x < numHorPoints/2; x++)
+				{
+					for (int xinterP = 0; xinterP < interpolationDensity; xinterP++)
+					{
+
+						for (int y = -numVertPoints/2; y <= numVertPoints/2; y++)
+						{
+							for (int yinterP = 0; yinterP < interpolationDensity; yinterP++)
+							{
+						
+								float xcoord = ((float)x + ((float)xinterP / interpolationDensity)) * c.squareSize;
+								float ycoord = ((float)y + ((float)yinterP / interpolationDensity)) * c.squareSize;
+
+								Point3f p(xcoord, ycoord, gridDistance);
+								gridPoints.push_back(p);
+
+								if (xinterP != 0)
+									break;
+							}
+						
+						
+						}
+					}
+				}
+
 				cv::Affine3d affine = cv::Affine3d::Identity();
 				std::vector<Point2f> imgPoints;
-				imgPoints.resize(1);
-
+				imgPoints.resize(gridPoints.size());
 				cv::Mat rvec, tvec;
 				rvec = Mat::zeros(cv::Size(1, 3), CV_64F);
 				tvec = Mat::zeros(cv::Size(1, 3), CV_64F);
-				//cv::fisheye::projectPoints(eccPoints, imgPoints, rvec, tvec, updateCameraMatrix, c.distortionCoefficient);
-				cv::fisheye::projectPoints(eccPoints, imgPoints, affine, updateCameraMatrix, c.distortionCoefficient);
-				
-				// compute radius
-				cv::Point2f diffFromPrincipalPoint = imgPoints[0] - cv::Point2f(principalPointImage);
-				double radius = diffFromPrincipalPoint.x;
 
-				//float radius = fovX;
-				circle(undistortedImage, principalPointImage, (int)radius, cv::Scalar(0, 255, 0),5);
-				char msg[1024];
-				putText(undistortedImage, cv::format("%d", (int)drawFov), cv::Point(principalPointImage.x + radius, principalPointImage.y), 1, 2, Scalar(0, 255, 0),5);
 
-				//if (drawFov > 0)
-				//{
-				//	putText(undistortedImage, cv::format("%d", (int)drawFov), cv::Point(principalPoint.x - radius - 40, principalPoint.y), 1, 2, Scalar(0, 255, 0), 5);
-				//	putText(undistortedImage, cv::format("%d", (int)drawFov), cv::Point(principalPoint.x, principalPoint.y + radius +30), 1, 2, Scalar(0, 255, 0), 5);
-				//	putText(undistortedImage, cv::format("%d", (int)drawFov), cv::Point(principalPoint.x, principalPoint.y - radius), 1, 2, Scalar(0, 255, 0), 5);
-				//}
+				cv::fisheye::projectPoints(gridPoints,
+					imgPoints,
+					affine,
+					c.cameraMatrix,
+					c.distortionCoefficient);
 
-				// compute radius
-				if (drawFov > fovH)
-					break;
-
-				drawFov += 5;
-				
+				for (int i = 0; i < imgPoints.size(); i++)
+				{
+					circle(temp, imgPoints[i], (int)2, cv::Scalar(0, 255, 0), 5);
+					//char msg[1024];
+					//putText(undistortedImage, cv::format("%.1f", eccPoints[i].x), cv::Point(imgPoints[i].x - 40, imgPoints[i].y + 50), 1, 2, Scalar(0, 255, 0), 5);
+				}
 			}
+
+
+			
+			if (visualizationMode == 1) // draw checkerboard
+			{
+				while (true)
+				{
+					// compute radius from field of view
+					//fovH = 2 * atan(imgWidth / (2 * fx)) * 180.0 / CV_PI;
+
+					//double fx = c.cameraMatrix.at<double>(0, 0);
+					//double fx = newK.at<double>(0, 0);
+
+					//float radius = tan(drawFov / (180.0 / CV_PI) / 2) * (2 * fx) / 2;
+					//fov = atan(x *0.5 / fx)
+					//tan(fov) = tan(atan(x *0.5 / fx))
+					//tan(fov) = x *0.5 / fx
+					//tan(fov) * fx = x *0.5
+					//tan(fov) * fx * 2 = x
+				
+					//float radius = tan(drawFov / (180.0 / CV_PI) / 2) * (fx) * 2;
+					//float radius = tan(drawFov / (180.0 / CV_PI)) * fx * 2;
+					//alpha = 2 * atan (d/2f)
+				
+					//std::cout << "radius : " << radius << std::endl;
+				
+					if (drawFov > 90)
+						break;
+
+					double drawFovRad = drawFov / 180.0 * CV_PI;
+				
+					// rotate a point about alpha
+					cv::Point3f p;
+				
+					p.z = cos(drawFovRad);
+					p.x = sqrt(1 - (p.z*p.z)); // create normalized vector in direction of eccentricity
+					p = p * 100;
+				
+
+
+					std::vector<Point3f> eccPoints;
+					eccPoints.push_back(p);
+							
+								
+					cv::Affine3d affine = cv::Affine3d::Identity();
+					std::vector<Point2f> imgPoints;
+					imgPoints.resize(1);
+					cv::Mat rvec, tvec;
+					rvec = Mat::zeros(cv::Size(1, 3), CV_64F);
+					tvec = Mat::zeros(cv::Size(1, 3), CV_64F);
+
+					//cv::fisheye::projectPoints(eccPoints, imgPoints, rvec, tvec, updateCameraMatrix, c.distortionCoefficient);
+					cv::fisheye::projectPoints(eccPoints,
+						imgPoints,
+						affine,
+						c.cameraMatrix,
+						c.distortionCoefficient);
+				
+					// compute radius
+					cv::Point2f diffFromPrincipalPoint = imgPoints[0] - cv::Point2f(principalPointImage);
+					double radius = diffFromPrincipalPoint.x;
+
+					if (radius > 0)
+					{
+				
+						//float radius = fovX;
+						circle(temp, principalPointImage, (int)radius, cv::Scalar(0, 255, 0),5);
+						char msg[1024];
+						putText(temp, cv::format("%d", (int)drawFov), cv::Point(principalPointImage.x + radius, principalPointImage.y), 1, 2, Scalar(0, 255, 0),5);
+
+						circle(temp, imgPoints[0], 10, cv::Scalar(0, 0, 255), -1);
+
+						if (drawFov > 0)
+						{
+							putText(undistortedImage, cv::format("%d", (int)drawFov), cv::Point(principalPoint.x - radius - 40, principalPoint.y), 1, 2, Scalar(0, 255, 0), 5);
+							putText(undistortedImage, cv::format("%d", (int)drawFov), cv::Point(principalPoint.x, principalPoint.y + radius +30), 1, 2, Scalar(0, 255, 0), 5);
+							putText(undistortedImage, cv::format("%d", (int)drawFov), cv::Point(principalPoint.x, principalPoint.y - radius), 1, 2, Scalar(0, 255, 0), 5);
+						}
+
+					}
+
+					// compute radius
+					if (drawFov > fovH)
+						break;
+
+					drawFov += 5;
+				
+				}
+			}
+			
+			if (showUndistorted)
+			{
+				//undistortedImage = temp;
+				remap(temp, undistortedImage, map1, map2, INTER_LINEAR, BORDER_CONSTANT);
+			}
+			else
+				undistortedImage = temp;
+			
 			
 			printf("%d/%d Undistorted\n", (int)imagePoints.size(), nframes);
 			printf("image size %d x %d", undistortedImage.size().width, undistortedImage.size().height);
@@ -902,9 +1090,9 @@ int main(int argc, char** argv)
 			
 			keypress = cvWaitKey(0);
 
-			//char filename[1024];
-			//sprintf(filename, "%s_undistorted.jpg", imageList[i].c_str());
-			//imwrite(filename, undistortedImage);
+			char filename[1024];
+			sprintf(filename, "%s_undistorted.jpg", imageList[i].c_str());
+			imwrite(filename, undistortedImage);
 
 			int c = 0xff & (int)keypress;
 			if ((c & 255) == 27 || c == 'q' || c == 'Q')
@@ -914,6 +1102,15 @@ int main(int argc, char** argv)
 				i++;
 				if (i == (int)imageList.size())
 					break;
+			}
+			if (c == 'u')
+			{
+				showUndistorted = !showUndistorted;
+			}
+			if (c == 'v')
+			{
+				visualizationMode++;
+				visualizationMode = visualizationMode % 3;
 			}
 			if (c == '1')
 			{
