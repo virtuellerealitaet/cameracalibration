@@ -447,6 +447,7 @@ int main(int argc, char** argv)
 
 		float balance = 1.0; // 0.0 crop to visible pixels, 1.0 maintain all pixels from original image
 		float divisor_new_focal_length = 2.0;
+		//float divisor_new_focal_length = 1.0;
 
 		i = 0;
 
